@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PhoneCall, AlertTriangle, ShieldAlert, HeartHandshake, Activity, X, Share2, Plus, Check, Trash2 } from 'lucide-react';
+import { PhoneCall, AlertTriangle, X, Plus, Trash2, Info, UserPlus } from 'lucide-react';
 import { EmergencyContact } from '../types';
 import { EMERGENCY_NUMBERS } from '../data/saarthiData';
 
@@ -8,40 +8,25 @@ interface EmergencySOSModalProps {
   onClose: () => void;
 }
 
-const DEFAULT_FAMILY_CONTACTS: EmergencyContact[] = [
-  {
-    id: 'contact-1',
-    name: 'Ramesh (Beta / Son)',
-    relation: 'Son',
-    phone: '+91 98450 12345',
-    isPrimary: true,
-  },
-  {
-    id: 'contact-2',
-    name: 'Priya (Beti / Daughter)',
-    relation: 'Daughter',
-    phone: '+91 98110 56789',
-    isPrimary: false,
-  },
-];
-
 export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, onClose }) => {
   const [contacts, setContacts] = useState<EmergencyContact[]>(() => {
     const saved = localStorage.getItem('saarthi_emergency_contacts');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {
         // fallback
       }
     }
-    return DEFAULT_FAMILY_CONTACTS;
+    return [];
   });
 
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [newContactName, setNewContactName] = useState('');
   const [newContactRelation, setNewContactRelation] = useState('Family');
   const [newContactPhone, setNewContactPhone] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('saarthi_emergency_contacts', JSON.stringify(contacts));
@@ -51,7 +36,7 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
 
   const handleSendSafeMessage = (phone: string, name: string) => {
     const text = encodeURIComponent(
-      `Pranam! This is a quick reassurance message from Saarthi: I am safe, healthy, and doing well at home right now (${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}). No need to worry!`
+      `Pranam! This is a quick reassurance message: I am safe, healthy, and doing well at home right now (${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}). No need to worry!`
     );
     const cleanNumber = phone.replace(/[^0-9]/g, '');
     window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}&text=${text}`, '_blank');
@@ -59,7 +44,7 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
 
   const handleSendSOSMessage = (phone: string) => {
     const text = encodeURIComponent(
-      `🚨 URGENT EMERGENCY ALERT FROM SAARTHI 🚨\n\nI need immediate assistance or a call back right now. Please call my phone immediately!`
+      `🚨 URGENT EMERGENCY ALERT 🚨\n\nI need immediate assistance or a call back right now. Please call my phone immediately!`
     );
     const cleanNumber = phone.replace(/[^0-9]/g, '');
     window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}&text=${text}`, '_blank');
@@ -75,13 +60,27 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
 
   const handleAddContact = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newContactName.trim() || !newContactPhone.trim()) return;
+    setPhoneError(null);
+
+    const nameTrimmed = newContactName.trim();
+    const phoneClean = newContactPhone.replace(/[^0-9+]/g, '');
+    const digitsOnly = phoneClean.replace(/[^0-9]/g, '');
+
+    if (!nameTrimmed) {
+      setPhoneError('Please enter the contact person’s name.');
+      return;
+    }
+
+    if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+      setPhoneError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
 
     const newContact: EmergencyContact = {
       id: `c-${Date.now()}`,
-      name: newContactName,
-      relation: newContactRelation,
-      phone: newContactPhone,
+      name: nameTrimmed,
+      relation: newContactRelation.trim() || 'Family',
+      phone: phoneClean.startsWith('+') ? phoneClean : `+91 ${phoneClean}`,
       isPrimary: contacts.length === 0,
     };
 
@@ -107,14 +106,14 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
         <div className="flex items-start justify-between pb-4 border-b border-rose-200">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 text-rose-900 font-extrabold text-xs uppercase tracking-wide">
-              <AlertTriangle className="w-4 h-4 text-rose-600 animate-bounce" />
-              <span>आपातकालीन सहायता • Emergency SOS</span>
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>आपातकालीन सहायता • Emergency Assistance</span>
             </div>
             <h2 className="text-2xl md:text-3xl font-black text-stone-900 font-heading">
-              1-Tap Emergency Helplines & Family Dial
+              Emergency Numbers & Trusted Family Speed Dial
             </h2>
             <p className="text-stone-600 text-sm">
-              Press any button below to immediately call or send an SOS message.
+              Tap any button below to connect with emergency services or your trusted family circle.
             </p>
           </div>
 
@@ -129,10 +128,19 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
           </button>
         </div>
 
+        {/* Technical & Medical Disclosure */}
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 flex items-start gap-2.5 text-xs text-stone-800">
+          <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div>
+            <strong className="text-amber-950 font-bold block mb-0.5">Important Safety Note:</strong>
+            Tapping "Call" opens your mobile device's phone dialer. You must tap "Call" on your device keypad to start the call. Saarthi does not automatically dial or alert responders in the background.
+          </div>
+        </div>
+
         {/* Official Indian Emergency Numbers */}
         <div className="space-y-3">
           <span className="text-xs font-extrabold text-stone-800 uppercase tracking-wider block">
-            National Helplines in India (Govt 24x7):
+            Official 24x7 Government Helplines (India):
           </span>
 
           <div className="grid sm:grid-cols-2 gap-3">
@@ -163,18 +171,38 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
         <div className="space-y-3 pt-3 border-t border-stone-200">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-stone-800 uppercase tracking-wider block">
-              Family Speed Dial & WhatsApp Check-in:
+              Trusted Family & Caregivers:
             </span>
             <button
               id="add-family-contact-btn"
               type="button"
-              onClick={() => setIsAddingContact(true)}
+              onClick={() => {
+                setIsAddingContact(true);
+                setPhoneError(null);
+              }}
               className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add Family Member</span>
+              <span>Add Real Family Contact</span>
             </button>
           </div>
+
+          {contacts.length === 0 && !isAddingContact && (
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 text-center space-y-2">
+              <UserPlus className="w-8 h-8 text-stone-400 mx-auto" />
+              <p className="text-sm font-bold text-stone-800">No personal family contacts saved yet.</p>
+              <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                Add your son, daughter, spouse, or trusted neighbor's real phone number for 1-tap WhatsApp check-ins and emergency calls.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsAddingContact(true)}
+                className="mt-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs"
+              >
+                + Add First Contact
+              </button>
+            </div>
+          )}
 
           <div className="grid gap-3">
             {contacts.map((contact) => (
@@ -200,7 +228,7 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
                   {/* Call phone */}
                   <a
                     href={`tel:${contact.phone}`}
-                    className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
                   >
                     <PhoneCall className="w-4 h-4" />
                     <span>Call Now</span>
@@ -236,16 +264,14 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
                     <span>🚨 SOS Alert</span>
                   </button>
 
-                  {contacts.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteContact(contact.id)}
-                      className="p-2 text-stone-400 hover:text-rose-600 rounded-lg"
-                      title="Remove contact"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteContact(contact.id)}
+                    className="p-2 text-stone-400 hover:text-rose-600 rounded-lg"
+                    title="Remove contact"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -257,7 +283,14 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
               onSubmit={handleAddContact}
               className="p-4 rounded-2xl bg-stone-50 border border-stone-300 space-y-3"
             >
-              <h4 className="font-bold text-sm text-stone-900">Add Family Contact</h4>
+              <h4 className="font-bold text-sm text-stone-900">Add Real Family Contact</h4>
+
+              {phoneError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                  {phoneError}
+                </div>
+              )}
+
               <div className="grid sm:grid-cols-3 gap-2">
                 <input
                   type="text"
@@ -265,22 +298,22 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
                   placeholder="Name (e.g. Ramesh)"
                   value={newContactName}
                   onChange={(e) => setNewContactName(e.target.value)}
-                  className="p-2 rounded-xl border border-stone-300 text-xs text-stone-900"
+                  className="p-2.5 rounded-xl border border-stone-300 text-xs text-stone-900"
                 />
                 <input
                   type="text"
                   placeholder="Relation (e.g. Son / Beti / Neighbor)"
                   value={newContactRelation}
                   onChange={(e) => setNewContactRelation(e.target.value)}
-                  className="p-2 rounded-xl border border-stone-300 text-xs text-stone-900"
+                  className="p-2.5 rounded-xl border border-stone-300 text-xs text-stone-900"
                 />
                 <input
                   type="tel"
                   required
-                  placeholder="Mobile (e.g. 9845012345)"
+                  placeholder="10-digit mobile (e.g. 9845012345)"
                   value={newContactPhone}
                   onChange={(e) => setNewContactPhone(e.target.value)}
-                  className="p-2 rounded-xl border border-stone-300 text-xs text-stone-900"
+                  className="p-2.5 rounded-xl border border-stone-300 text-xs text-stone-900 font-mono"
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -295,7 +328,7 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
                   type="submit"
                   className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs"
                 >
-                  Save
+                  Save Contact
                 </button>
               </div>
             </form>

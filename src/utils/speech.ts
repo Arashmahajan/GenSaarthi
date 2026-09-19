@@ -1,6 +1,7 @@
 // Senior-friendly Speech-to-Text and Text-to-Speech utilities
 
 export class SaarthiVoiceService {
+  public static defaultRate: number = 0.85;
   private static synth: SpeechSynthesis | null = typeof window !== 'undefined' ? window.speechSynthesis : null;
   private static currentUtterance: SpeechSynthesisUtterance | null = null;
   private static isSpeaking: boolean = false;
@@ -18,7 +19,7 @@ export class SaarthiVoiceService {
     this.onStateChangeCallbacks.forEach(cb => cb(speaking));
   }
 
-  public static speak(text: string, rate: number = 0.85, lang: string = 'en-IN') {
+  public static speak(text: string, rate?: number, lang: string = 'en-IN') {
     if (!this.synth) return;
 
     // Stop any ongoing speech
@@ -34,7 +35,7 @@ export class SaarthiVoiceService {
       .replace(/₹/g, 'Rupees ');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = rate; // Gentle, slower pace for seniors
+    utterance.rate = rate ?? this.defaultRate; // Gentle, slower pace for seniors
     utterance.pitch = 1.0;
 
     // Look for Indian English or Hindi voice if available

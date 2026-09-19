@@ -33,10 +33,23 @@ export interface UnifiedCheckResult {
 export interface GeneralReminder {
   id: string;
   title: string;
-  dueDate: string | null;
+  dueDate: string | null; // e.g. "YYYY-MM-DD"
+  dueTime?: string | null; // e.g. "09:30"
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
   note: string;
   isCompleted: boolean;
   createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface DoseRecord {
+  id: string;
+  medicineId: string;
+  date: string; // Local date string "YYYY-MM-DD"
+  timing: 'morning' | 'afternoon' | 'evening' | 'night';
+  takenAt: string; // Formatted time e.g. "08:15 AM"
+  timestamp: number; // Epoch timestamp ms
+  pillsDeducted: number; // Pills deducted from inventory on this record
 }
 
 export interface DayPlanSlot {
@@ -91,12 +104,14 @@ export interface MedicineItem {
   timeLabel: string;
   withFood: 'before_food' | 'after_food' | 'with_food' | 'anytime';
   purpose: string; // e.g. "Controls Blood Pressure"
-  takenToday: boolean;
+  takenToday?: boolean; // kept for legacy backward compatibility
   takenAt?: string;
   colorBadge: string;
   pillIconType: 'tablet' | 'capsule' | 'syrup' | 'drops';
   remainingPills: number;
+  initialPills?: number;
   doctorNotes?: string;
+  isSample?: boolean;
 }
 
 export interface SeniorScheme {

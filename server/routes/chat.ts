@@ -43,26 +43,40 @@ chatRouter.post('/chat', async (req: Request, res: Response, next: NextFunction)
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders?.();
 
+      let clientConnected = true;
+      req.on('close', () => {
+        clientConnected = false;
+      });
+
       try {
         const streamIterable = await callGeminiStream(contents, {
           systemInstruction,
         });
 
         for await (const chunk of streamIterable) {
+          if (!clientConnected || res.writableEnded) {
+            break;
+          }
           const chunkText = chunk.text || '';
           if (chunkText) {
             res.write(`data: ${JSON.stringify({ chunk: chunkText, source: 'ai' })}\n\n`);
           }
         }
 
-        res.write(`data: [DONE]\n\n`);
-        return res.end();
+        if (clientConnected && !res.writableEnded) {
+          res.write(`data: [DONE]\n\n`);
+          res.end();
+        }
+        return;
       } catch (streamErr) {
-        console.warn('[Chat Route] Streaming error, sending fallback chunk.');
-        const fallbackText = generateHonestFallbackChatReply(message, language);
-        res.write(`data: ${JSON.stringify({ chunk: fallbackText, source: 'fallback' })}\n\n`);
-        res.write(`data: [DONE]\n\n`);
-        return res.end();
+        if (clientConnected && !res.writableEnded) {
+          console.warn('[Chat Route] Streaming error, sending fallback chunk.');
+          const fallbackText = generateHonestFallbackChatReply(message, language);
+          res.write(`data: ${JSON.stringify({ chunk: fallbackText, source: 'fallback' })}\n\n`);
+          res.write(`data: [DONE]\n\n`);
+          res.end();
+        }
+        return;
       }
     }
 

@@ -20,8 +20,8 @@ planRouter.post('/plan', async (req: Request, res: Response, next: NextFunction)
       });
     }
 
-    const { routinesOrNotes, language, userName } = validation.data;
-    const prompt = getPlanDayPrompt(routinesOrNotes, language);
+    const { routinesOrNotes, language, userName, savedReminders, scheduledMedicines } = validation.data;
+    const prompt = getPlanDayPrompt(routinesOrNotes, language, savedReminders, scheduledMedicines);
     const systemInstruction = getSeniorSystemInstruction(language, userName);
 
     try {

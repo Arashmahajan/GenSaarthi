@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Sparkles, Clock, Coffee, Heart, Sun, Moon, Loader2, Check } from 'lucide-react';
-import { DayPlanResult, Language } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Clock, Heart, Sun, Loader2, Calendar, Pill, CheckSquare, Square } from 'lucide-react';
+import { DayPlanResult, Language, GeneralReminder, MedicineItem } from '../types';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
 
 interface PlanMyDayProps {
@@ -14,7 +14,7 @@ const PRESET_ROUTINES = [
   },
   {
     label: '🩺 Doctor Appointment Day',
-    text: 'Morning hospital appointment with Dr. Sharma for routine blood pressure checkup, taking test reports, and pharmacy visit.',
+    text: 'Morning hospital appointment with doctor for routine blood pressure checkup, taking test reports, and pharmacy visit.',
   },
   {
     label: '🛕 Temple & Family Evening',
@@ -22,16 +22,74 @@ const PRESET_ROUTINES = [
   },
 ];
 
+function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export const PlanMyDay: React.FC<PlanMyDayProps> = ({ language }) => {
+  const todayStr = getLocalDateString();
+
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [planResult, setPlanResult] = useState<DayPlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Saved data from localStorage
+  const [includeSavedData, setIncludeSavedData] = useState(true);
+  const [savedReminders, setSavedReminders] = useState<GeneralReminder[]>([]);
+  const [savedMedicines, setSavedMedicines] = useState<MedicineItem[]>([]);
+
+  useEffect(() => {
+    try {
+      const remRaw = localStorage.getItem('saarthi_reminders');
+      if (remRaw) {
+        const parsed = JSON.parse(remRaw);
+        if (Array.isArray(parsed)) {
+          // Filter to pending reminders or reminders due today
+          setSavedReminders(parsed.filter((r) => !r.isCompleted || r.dueDate === todayStr));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading reminders for PlanMyDay');
+    }
+
+    try {
+      const medRaw = localStorage.getItem('saarthi_medicines');
+      if (medRaw) {
+        const parsed = JSON.parse(medRaw);
+        if (Array.isArray(parsed)) {
+          setSavedMedicines(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading medicines for PlanMyDay');
+    }
+  }, [todayStr]);
+
   const handlePlan = async (routineText?: string) => {
     const textToSubmit = routineText !== undefined ? routineText : notes;
     setIsLoading(true);
     setError(null);
+
+    // Format reminders and medicines strings if checked
+    let remindersToSend: string[] | undefined;
+    let medicinesToSend: string[] | undefined;
+
+    if (includeSavedData) {
+      if (savedReminders.length > 0) {
+        remindersToSend = savedReminders.map(
+          (r) => `${r.title}${r.dueTime ? ` at ${r.dueTime}` : ''}${r.note ? ` - Note: ${r.note}` : ''}`
+        );
+      }
+      if (savedMedicines.length > 0) {
+        medicinesToSend = savedMedicines.map(
+          (m) => `${m.name} (${m.dosage}) - ${m.timeLabel} (${m.withFood.replace('_', ' ')})`
+        );
+      }
+    }
 
     try {
       const res = await fetch('/api/plan', {
@@ -40,18 +98,27 @@ export const PlanMyDay: React.FC<PlanMyDayProps> = ({ language }) => {
         body: JSON.stringify({
           routinesOrNotes: textToSubmit.trim() || undefined,
           language: language === 'hi' ? 'hi' : 'en',
+          savedReminders: remindersToSend,
+          scheduledMedicines: medicinesToSend,
         }),
       });
 
       if (!res.ok) {
-        throw new Error('Failed to generate daily plan.');
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error?.message || 'Failed to generate daily plan.');
       }
 
       const data: DayPlanResult = await res.json();
       setPlanResult(data);
     } catch (err: any) {
       console.error(err);
-      setError('Could not create day plan right now. Please try again.');
+      // Clear stale plan result so user isn't misled by outdated schedule
+      setPlanResult(null);
+      setError(
+        language === 'hi'
+          ? 'आज का शेड्यूल बनाने में समस्या आई। कृपया दोबारा प्रयास करें।'
+          : 'Could not create day plan right now. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -125,9 +192,48 @@ export const PlanMyDay: React.FC<PlanMyDayProps> = ({ language }) => {
           rows={3}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="e.g., Morning walk in the park, blood pressure checkup at 11 AM, grandchildren visiting in evening..."
+          placeholder="e.g., Morning walk in the park, doctor checkup at 11 AM, grandchildren visiting in evening..."
           className="w-full p-4 rounded-2xl border border-stone-300 text-stone-800 text-base focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none"
         />
+
+        {/* Integration of Saved Reminders & Medicines Toggle */}
+        {(savedReminders.length > 0 || savedMedicines.length > 0) && (
+          <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-stone-600 block">
+                Saved Profile Data:
+              </span>
+              <p className="text-sm font-semibold text-stone-800 flex items-center gap-2 flex-wrap">
+                {savedReminders.length > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{savedReminders.length} saved tasks</span>
+                  </span>
+                )}
+                {savedReminders.length > 0 && savedMedicines.length > 0 && <span>•</span>}
+                {savedMedicines.length > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    <Pill className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{savedMedicines.length} scheduled medicines</span>
+                  </span>
+                )}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIncludeSavedData(!includeSavedData)}
+              className="inline-flex items-center gap-2 text-xs font-bold text-stone-800 hover:text-stone-950 self-start sm:self-center"
+            >
+              {includeSavedData ? (
+                <CheckSquare className="w-5 h-5 text-amber-600" />
+              ) : (
+                <Square className="w-5 h-5 text-stone-400" />
+              )}
+              <span>Include saved tasks & medicines in plan</span>
+            </button>
+          </div>
+        )}
 
         <div className="flex justify-end">
           <button

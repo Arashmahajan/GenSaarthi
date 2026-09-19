@@ -29,6 +29,32 @@ export interface ValidatedCheckData {
   userName?: string;
 }
 
+function verifyImageSignature(buffer: Buffer, declaredMime: AllowedImageMimeType): boolean {
+  if (buffer.length < 12) return false;
+
+  if (declaredMime === 'image/jpeg') {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (declaredMime === 'image/png') {
+    return (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a
+    );
+  }
+  if (declaredMime === 'image/webp') {
+    const riff = buffer.subarray(0, 4).toString('ascii');
+    const webp = buffer.subarray(8, 12).toString('ascii');
+    return riff === 'RIFF' && webp === 'WEBP';
+  }
+  return false;
+}
+
 export function validateCheckRequest(body: any): ValidationResult<ValidatedCheckData> {
   if (!body || typeof body !== 'object') {
     return {
@@ -119,6 +145,17 @@ export function validateCheckRequest(body: any): ValidationResult<ValidatedCheck
         error: {
           code: 'IMAGE_TOO_LARGE',
           message: 'The photo is larger than 4 MB. Please try a smaller photo.',
+          statusCode: 400,
+        },
+      };
+    }
+
+    if (!verifyImageSignature(buffer, imageMimeType)) {
+      return {
+        isValid: false,
+        error: {
+          code: 'INVALID_IMAGE_SIGNATURE',
+          message: 'The file signature does not match the image format. Please upload a real JPEG, PNG, or WebP photo.',
           statusCode: 400,
         },
       };
@@ -272,10 +309,12 @@ export interface ValidatedPlanData {
   routinesOrNotes?: string;
   language: Language;
   userName?: string;
+  savedReminders?: string[];
+  scheduledMedicines?: string[];
 }
 
 export function validatePlanRequest(body: any): ValidationResult<ValidatedPlanData> {
-  const { routinesOrNotes, language = 'en', userName } = body || {};
+  const { routinesOrNotes, language = 'en', userName, savedReminders, scheduledMedicines } = body || {};
 
   if (typeof routinesOrNotes === 'string' && routinesOrNotes.length > LIMITS.MAX_PLAN_TEXT_LENGTH) {
     return {
@@ -288,12 +327,32 @@ export function validatePlanRequest(body: any): ValidationResult<ValidatedPlanDa
     };
   }
 
+  // Validate savedReminders array if provided
+  let cleanReminders: string[] | undefined;
+  if (Array.isArray(savedReminders)) {
+    cleanReminders = savedReminders
+      .filter((r) => typeof r === 'string' && r.trim().length > 0)
+      .slice(0, 15)
+      .map((r) => r.slice(0, 150).trim());
+  }
+
+  // Validate scheduledMedicines array if provided
+  let cleanMedicines: string[] | undefined;
+  if (Array.isArray(scheduledMedicines)) {
+    cleanMedicines = scheduledMedicines
+      .filter((m) => typeof m === 'string' && m.trim().length > 0)
+      .slice(0, 15)
+      .map((m) => m.slice(0, 150).trim());
+  }
+
   return {
     isValid: true,
     data: {
       routinesOrNotes: typeof routinesOrNotes === 'string' ? routinesOrNotes.trim() : undefined,
       language: language === 'hi' ? 'hi' : 'en',
       userName: typeof userName === 'string' ? userName.slice(0, 50).trim() : undefined,
+      savedReminders: cleanReminders,
+      scheduledMedicines: cleanMedicines,
     },
   };
 }

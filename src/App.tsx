@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AccessibilitySettings, Language } from './types';
 import { Navbar } from './components/Navbar';
 import { HomeDashboard } from './components/HomeDashboard';
@@ -10,33 +10,57 @@ import { SeniorSchemes } from './components/SeniorSchemes';
 import { DigitalGuides } from './components/DigitalGuides';
 import { CompanionChat } from './components/CompanionChat';
 import { EmergencySOSModal } from './components/EmergencySOSModal';
-import { PhoneCall } from 'lucide-react';
+import { SaarthiVoiceService } from './utils/speech';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isSOSOpen, setIsSOSOpen] = useState(false);
 
-  const [settings, setSettings] = useState<AccessibilitySettings>({
-    textSize: 'normal',
-    highContrast: false,
-    darkMode: false,
-    speechRate: 0.85, // Gentle elder speech pace
-    language: 'en',
-    soundEnabled: true,
+  const [settings, setSettings] = useState<AccessibilitySettings>(() => {
+    try {
+      const saved = localStorage.getItem('saarthi_accessibility_settings');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Failed to parse saved settings');
+    }
+    return {
+      textSize: 'normal',
+      highContrast: false,
+      darkMode: false,
+      speechRate: 0.85, // Gentle elder speech pace
+      language: 'en',
+      soundEnabled: true,
+    };
   });
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('saarthi_accessibility_settings', JSON.stringify(settings));
+    } catch (e) {
+      // ignore
+    }
+
+    if (settings.speechRate) {
+      SaarthiVoiceService.defaultRate = settings.speechRate;
+    }
+
+    if (settings.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    if (settings.highContrast) {
+      document.documentElement.classList.add('high-contrast');
+    } else {
+      document.documentElement.classList.remove('high-contrast');
+    }
+  }, [settings]);
+
   const handleUpdateSettings = (newSettings: Partial<AccessibilitySettings>) => {
-    setSettings((prev) => {
-      const updated = { ...prev, ...newSettings };
-      if (newSettings.darkMode !== undefined) {
-        if (newSettings.darkMode) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-      }
-      return updated;
-    });
+    setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
   // Font size class mapping for elders (19px base scale)

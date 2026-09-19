@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { PORT, LIMITS } from './server/config';
 import { securityHeaders } from './server/middleware/security';
-import { apiRateLimiter } from './server/middleware/rateLimit';
+import { apiRateLimiter, aiRateLimiter, uploadRateLimiter } from './server/middleware/rateLimit';
 import { errorHandler } from './server/middleware/errorHandler';
 import { healthRouter } from './server/routes/health';
 import { checkRouter } from './server/routes/check';
@@ -17,15 +17,15 @@ app.use(securityHeaders);
 app.use(express.json({ limit: LIMITS.JSON_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: LIMITS.JSON_BODY_LIMIT }));
 
-// Apply rate limiting to all /api routes
+// Apply general rate limiting to all /api routes
 app.use('/api', apiRateLimiter);
 
-// Mount API routes
+// Mount API routes with endpoint-specific rate limiters
 app.use('/api', healthRouter);
-app.use('/api', checkRouter);
-app.use('/api', chatRouter);
-app.use('/api', medicineRouter);
-app.use('/api', planRouter);
+app.use('/api', uploadRateLimiter, checkRouter);
+app.use('/api', aiRateLimiter, chatRouter);
+app.use('/api', aiRateLimiter, medicineRouter);
+app.use('/api', aiRateLimiter, planRouter);
 
 // Unknown /api routes return JSON 404
 app.all('/api/*', (_req, res) => {
