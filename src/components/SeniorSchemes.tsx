@@ -3,12 +3,15 @@ import { Landmark, ShieldCheck, CheckCircle2, PhoneCall, ExternalLink, HelpCircl
 import { SeniorScheme, Language } from '../types';
 import { SENIOR_SCHEMES } from '../data/saarthiData';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
+import { useApp } from '../context/AppContext';
 
 interface SeniorSchemesProps {
-  language: Language;
+  language?: Language;
 }
 
 export const SeniorSchemes: React.FC<SeniorSchemesProps> = ({ language }) => {
+  const { settings } = useApp();
+  const lang = language || settings.language;
   const [userAge, setUserAge] = useState<number>(68);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [expandedSchemeId, setExpandedSchemeId] = useState<string | null>('ayushman-70-plus');

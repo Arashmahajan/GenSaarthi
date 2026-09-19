@@ -3,12 +3,15 @@ import { Smartphone, Zap, Video, Award, Navigation, CheckCircle2, AlertCircle, S
 import { DigitalGuide, Language } from '../types';
 import { DIGITAL_GUIDES } from '../data/saarthiData';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
+import { useApp } from '../context/AppContext';
 
 interface DigitalGuidesProps {
-  language: Language;
+  language?: Language;
 }
 
 export const DigitalGuides: React.FC<DigitalGuidesProps> = ({ language }) => {
+  const { settings } = useApp();
+  const lang = language || settings.language;
   const [selectedGuideId, setSelectedGuideId] = useState<string>('guide-phonepe-bill');
   const [completedSteps, setCompletedSteps] = useState<Record<string, number[]>>({});
 
@@ -213,8 +216,8 @@ export const DigitalGuides: React.FC<DigitalGuidesProps> = ({ language }) => {
         </div>
 
         {isAllStepsCompleted && (
-          <div className="p-4 bg-emerald-100 border border-emerald-300 rounded-2xl text-center text-emerald-950 font-bold text-sm md:text-base shadow-xs animate-bounce">
-            🎉 Shabash Uncle/Aunty ji! You have successfully completed this guide. You are becoming a digital master!
+          <div className="p-4 bg-emerald-100 border border-emerald-300 rounded-2xl text-center text-emerald-950 font-bold text-sm md:text-base shadow-xs">
+            🎉 Shabash! You have successfully completed this guide. You are becoming a digital master!
           </div>
         )}
       </div>

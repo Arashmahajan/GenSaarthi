@@ -149,3 +149,112 @@ export function validateUnifiedCheckResponse(obj: any): {
 
   return { isValid: true, data: sanitized };
 }
+
+export function validateMedicineResponse(obj: any): {
+  isValid: boolean;
+  data?: Omit<import('../types').MedicineExplainerResponse, 'source'>;
+  errors?: string[];
+} {
+  if (!obj || typeof obj !== 'object') {
+    return { isValid: false, errors: ['Response is not an object'] };
+  }
+
+  const errors: string[] = [];
+
+  if (typeof obj.simpleName !== 'string' || !obj.simpleName.trim()) {
+    errors.push('simpleName must be a non-empty string');
+  }
+  if (typeof obj.whatItDoes !== 'string' || !obj.whatItDoes.trim()) {
+    errors.push('whatItDoes must be a non-empty string');
+  }
+  if (typeof obj.bestTimeToTake !== 'string' || !obj.bestTimeToTake.trim()) {
+    errors.push('bestTimeToTake must be a non-empty string');
+  }
+  if (typeof obj.foodGuidance !== 'string' || !obj.foodGuidance.trim()) {
+    errors.push('foodGuidance must be a non-empty string');
+  }
+  if (!Array.isArray(obj.simplePrecautions)) {
+    errors.push('simplePrecautions must be an array of strings');
+  }
+  if (typeof obj.missedDoseAdvice !== 'string' || !obj.missedDoseAdvice.trim()) {
+    errors.push('missedDoseAdvice must be a non-empty string');
+  }
+  if (typeof obj.storageTip !== 'string' || !obj.storageTip.trim()) {
+    errors.push('storageTip must be a non-empty string');
+  }
+  if (typeof obj.disclaimer !== 'string' || !obj.disclaimer.trim()) {
+    errors.push('disclaimer must be a non-empty string');
+  }
+
+  if (errors.length > 0) {
+    return { isValid: false, errors };
+  }
+
+  const simplePrecautions = (obj.simplePrecautions as any[])
+    .filter((p) => typeof p === 'string' && p.trim().length > 0)
+    .map((p) => p.trim());
+
+  return {
+    isValid: true,
+    data: {
+      simpleName: obj.simpleName.trim(),
+      whatItDoes: obj.whatItDoes.trim(),
+      bestTimeToTake: obj.bestTimeToTake.trim(),
+      foodGuidance: obj.foodGuidance.trim(),
+      simplePrecautions,
+      missedDoseAdvice: obj.missedDoseAdvice.trim(),
+      storageTip: obj.storageTip.trim(),
+      disclaimer: obj.disclaimer.trim(),
+    },
+  };
+}
+
+export function validatePlanDayResponse(obj: any): {
+  isValid: boolean;
+  data?: Omit<import('../types').PlanDayResponse, 'source'>;
+  errors?: string[];
+} {
+  if (!obj || typeof obj !== 'object') {
+    return { isValid: false, errors: ['Response is not an object'] };
+  }
+
+  const errors: string[] = [];
+
+  if (typeof obj.greeting !== 'string' || !obj.greeting.trim()) {
+    errors.push('greeting must be a non-empty string');
+  }
+  if (typeof obj.summary !== 'string' || !obj.summary.trim()) {
+    errors.push('summary must be a non-empty string');
+  }
+  if (!Array.isArray(obj.schedule) || obj.schedule.length === 0) {
+    errors.push('schedule must be a non-empty array');
+  }
+  if (typeof obj.wellnessNote !== 'string' || !obj.wellnessNote.trim()) {
+    errors.push('wellnessNote must be a non-empty string');
+  }
+
+  if (errors.length > 0) {
+    return { isValid: false, errors };
+  }
+
+  const schedule: Array<{ time: string; activity: string; tip: string }> = [];
+  for (const slot of obj.schedule) {
+    if (slot && typeof slot.time === 'string' && typeof slot.activity === 'string') {
+      schedule.push({
+        time: slot.time.trim(),
+        activity: slot.activity.trim(),
+        tip: typeof slot.tip === 'string' ? slot.tip.trim() : '',
+      });
+    }
+  }
+
+  return {
+    isValid: true,
+    data: {
+      greeting: obj.greeting.trim(),
+      summary: obj.summary.trim(),
+      schedule,
+      wellnessNote: obj.wellnessNote.trim(),
+    },
+  };
+}

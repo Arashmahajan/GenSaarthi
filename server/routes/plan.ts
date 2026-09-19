@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { validatePlanRequest } from '../validation/requestValidators';
+import { validatePlanDayResponse } from '../validation/responseValidators';
 import { getSeniorSystemInstruction } from '../prompts/system';
-import { getPlanDayPrompt } from '../prompts/plan';
+import { getPlanDayPrompt, PLAN_RESPONSE_SCHEMA } from '../prompts/plan';
 import { callGeminiGenerate } from '../services/gemini';
 import { generateHonestFallbackPlanReply } from '../fallbacks/planReply';
 import { PlanDayResponse } from '../types';
@@ -30,6 +31,7 @@ planRouter.post('/plan', async (req: Request, res: Response, next: NextFunction)
         {
           systemInstruction,
           responseMimeType: 'application/json',
+          responseSchema: PLAN_RESPONSE_SCHEMA,
         }
       );
 
@@ -40,24 +42,16 @@ planRouter.post('/plan', async (req: Request, res: Response, next: NextFunction)
         .trim();
 
       const parsed = JSON.parse(cleaned);
-      parsed.source = 'ai';
+      const validated = validatePlanDayResponse(parsed);
 
-      const sanitized: PlanDayResponse = {
-        greeting: typeof parsed.greeting === 'string' ? parsed.greeting : 'Namaste! Plan for your day',
-        summary:
-          typeof parsed.summary === 'string'
-            ? parsed.summary
-            : 'A comfortable, balanced schedule with regular meals and restful breaks.',
-        schedule: Array.isArray(parsed.schedule) ? parsed.schedule : [],
-        wellnessNote:
-          typeof parsed.wellnessNote === 'string'
-            ? parsed.wellnessNote
-            : 'May your day be peaceful, calm, and full of good health.',
-        source: 'ai',
-      };
-
-      if (sanitized.schedule.length > 0) {
-        return res.json(sanitized);
+      if (validated.isValid && validated.data) {
+        const responseData: PlanDayResponse = {
+          ...validated.data,
+          source: 'ai',
+        };
+        return res.json(responseData);
+      } else {
+        console.warn('[Plan Route] Response failed schema validation:', validated.errors);
       }
     } catch (aiErr) {
       console.warn('[Plan Route] AI call failed, using honest fallback plan.');

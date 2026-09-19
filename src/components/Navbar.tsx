@@ -1,235 +1,189 @@
 import React from 'react';
-import { Shield, Sparkles, PhoneCall, Volume2, Type, Sun, Moon, Languages } from 'lucide-react';
-import { AccessibilitySettings, Language, TextSize } from '../types';
+import {
+  ShieldAlert,
+  Sparkles,
+  MessageSquare,
+  FileText,
+  Heart,
+  Settings,
+  Menu,
+  Languages,
+  PhoneCall,
+  Pill,
+} from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { t } from '../i18n';
 
 interface NavbarProps {
-  settings: AccessibilitySettings;
-  onUpdateSettings: (newSettings: Partial<AccessibilitySettings>) => void;
-  onOpenSOS: () => void;
   activeTab: string;
   onSelectTab: (tab: string) => void;
+  onOpenSOS: () => void;
+  onOpenSettings: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  settings,
-  onUpdateSettings,
-  onOpenSOS,
   activeTab,
   onSelectTab,
+  onOpenSOS,
+  onOpenSettings,
 }) => {
-  const languageLabels: Record<Language, string> = {
-    en: 'English',
-    hi: 'हिंदी (Hindi)',
-    hinglish: 'Hinglish',
-    bn: 'বাংলা (Bengali)',
-    mr: 'मराठी (Marathi)',
-    ta: 'தமிழ் (Tamil)',
-    te: 'తెలుగు (Telugu)',
-    gu: 'ગુજરાતી (Gujarati)',
-  };
+  const { settings, updateSettings } = useApp();
+  const lang = settings.language;
 
+  // 5 Core navigation items (Requirement 8)
   const navItems = [
-    { id: 'home', label: 'Home / मुख्य पृष्ठ', icon: '🏠' },
-    { id: 'check', label: 'Check / जांचें', icon: '🛡️' },
-    { id: 'chat', label: 'Ask / पूछें', icon: '🎙️' },
-    { id: 'reminders', label: 'Reminders / याददाश्त', icon: '📅' },
-    { id: 'medicine', label: 'Medicines / दवाई साथी', icon: '💊' },
-    { id: 'plan', label: 'Plan My Day / दिनचर्या', icon: '🌅' },
-    { id: 'schemes', label: 'Senior Schemes / योजनाएं', icon: '🏛️' },
-    { id: 'guides', label: 'Digital Guides / आसान तकनीक', icon: '📱' },
+    {
+      id: 'home',
+      hash: '#home',
+      label: t('homeTab', lang),
+      icon: '🏠',
+    },
+    {
+      id: 'chat',
+      hash: '#ask',
+      label: t('askTab', lang),
+      icon: '🎙️',
+    },
+    {
+      id: 'check',
+      hash: '#check',
+      label: t('checkTab', lang),
+      icon: '🛡️',
+    },
+    {
+      id: 'reminders_and_medicines',
+      hash: '#reminders',
+      label: t('remindersMedicinesTab', lang),
+      icon: '💊',
+    },
+    {
+      id: 'help',
+      hash: '#help',
+      label: t('emergencyTab', lang),
+      icon: '🚨',
+    },
   ];
 
-  const toggleLanguage = (newLang: Language) => {
-    onUpdateSettings({ language: newLang });
+  const isMoreActive = ['more', 'schemes', 'guides', 'plan'].includes(activeTab);
+
+  const toggleLanguage = () => {
+    const nextLang = lang === 'en' ? 'hi' : 'en';
+    updateSettings({ language: nextLang });
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = newLang;
+      document.documentElement.lang = nextLang;
     }
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-b border-stone-200 dark:border-stone-800 shadow-sm transition-colors">
-      {/* Top Accessibility Bar */}
-      <div className="bg-stone-100 dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800 px-4 py-2 text-sm text-stone-700 dark:text-stone-300">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          {/* Tagline */}
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-            <span className="font-bold text-stone-800 dark:text-stone-100">
-              सारथी • Senior Citizen Friendly Companion
+    <header className="sticky top-0 z-40 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-b border-stone-200 dark:border-stone-800 shadow-xs transition-colors">
+      {/* Top Utility Bar */}
+      <div className="bg-stone-100 dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800 px-4 py-1.5 text-xs text-stone-700 dark:text-stone-300">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+          {/* Logo & Tagline */}
+          <div
+            onClick={() => onSelectTab('home')}
+            className="flex items-center space-x-2 cursor-pointer group"
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="font-extrabold text-stone-900 dark:text-stone-100 text-sm font-heading tracking-tight">
+              सारथी • Saarthi
+            </span>
+            <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 text-[11px] font-bold border border-amber-300 dark:border-amber-800">
+              {lang === 'hi' ? 'बुजुर्गों का डिजिटल साथी' : 'Senior AI Companion'}
             </span>
           </div>
 
-          {/* Quick Accessibility Controls with 48px minimum touch targets */}
-          <div className="flex items-center flex-wrap gap-2 sm:gap-3">
-            {/* Font Size Selector */}
-            <div className="flex items-center space-x-1 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl p-1">
-              <span className="text-xs font-bold text-stone-600 dark:text-stone-300 px-1">Text:</span>
-              <button
-                id="font-size-normal"
-                type="button"
-                onClick={() => onUpdateSettings({ textSize: 'normal' })}
-                className={`min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                  settings.textSize === 'normal'
-                    ? 'bg-amber-500 text-white'
-                    : 'text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700'
-                }`}
-                title="Normal text size (19px)"
-              >
-                Normal
-              </button>
-              <button
-                id="font-size-large"
-                type="button"
-                onClick={() => onUpdateSettings({ textSize: 'large' })}
-                className={`min-h-[44px] px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
-                  settings.textSize === 'large'
-                    ? 'bg-amber-500 text-white'
-                    : 'text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700'
-                }`}
-                title="Large text size"
-              >
-                Large
-              </button>
-              <button
-                id="font-size-extra-large"
-                type="button"
-                onClick={() => onUpdateSettings({ textSize: 'extra-large' })}
-                className={`min-h-[44px] px-3 py-1.5 rounded-lg text-base font-extrabold transition-colors ${
-                  settings.textSize === 'extra-large'
-                    ? 'bg-amber-500 text-white'
-                    : 'text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700'
-                }`}
-                title="Extra large text size"
-              >
-                Extra Large
-              </button>
-            </div>
-
-            {/* Dark Mode Toggle */}
+          {/* Quick Language & Settings actions */}
+          <div className="flex items-center space-x-2">
+            {/* Direct Language Switcher (Requirement 8: English / Hindi toggle) */}
             <button
-              id="dark-mode-toggle"
+              id="nav-lang-toggle"
               type="button"
-              onClick={() => onUpdateSettings({ darkMode: !settings.darkMode })}
-              className={`min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors ${
-                settings.darkMode
-                  ? 'bg-stone-900 text-amber-300 border-amber-500'
-                  : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200'
-              }`}
-              title="Toggle Dark Mode"
+              onClick={toggleLanguage}
+              className="min-h-[44px] px-3 py-1.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-100 text-xs font-bold flex items-center space-x-1.5 transition-colors focus:ring-2 focus:ring-amber-400"
+              title="Change Language / भाषा बदलें"
+              aria-label="Change Language / भाषा बदलें"
             >
-              {settings.darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-              <span>{settings.darkMode ? 'Light' : 'Dark'}</span>
+              <Languages className="w-4 h-4 text-amber-600" />
+              <span>{lang === 'en' ? 'हिंदी में बदलें' : 'Switch to English'}</span>
             </button>
 
-            {/* High Contrast Mode Toggle */}
+            {/* Settings Dialog Button */}
             <button
-              id="contrast-mode-toggle"
+              id="nav-settings-btn"
               type="button"
-              onClick={() => onUpdateSettings({ highContrast: !settings.highContrast })}
-              className={`min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors ${
-                settings.highContrast
-                  ? 'bg-black text-amber-300 border-amber-400 ring-2 ring-amber-400'
-                  : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200'
-              }`}
-              title="Toggle High Contrast Mode"
+              onClick={onOpenSettings}
+              className="min-h-[44px] min-w-[44px] p-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 flex items-center justify-center transition-colors focus:ring-2 focus:ring-amber-400"
+              title={t('settingsTitle', lang)}
+              aria-label={t('settingsTitle', lang)}
             >
-              <span>{settings.highContrast ? '⚡ High Contrast (ON)' : 'High Contrast'}</span>
+              <Settings className="w-4 h-4 text-stone-700 dark:text-stone-300" />
             </button>
-
-            {/* English / Hindi Quick Toggle */}
-            <div className="flex items-center space-x-1 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl p-1">
-              <button
-                id="lang-en-btn"
-                type="button"
-                onClick={() => toggleLanguage('en')}
-                className={`min-h-[44px] px-3 py-1 rounded-lg text-xs font-bold ${
-                  settings.language === 'en'
-                    ? 'bg-amber-600 text-white'
-                    : 'text-stone-700 dark:text-stone-300'
-                }`}
-              >
-                English
-              </button>
-              <button
-                id="lang-hi-btn"
-                type="button"
-                onClick={() => toggleLanguage('hi')}
-                className={`min-h-[44px] px-3 py-1 rounded-lg text-xs font-bold ${
-                  settings.language === 'hi'
-                    ? 'bg-amber-600 text-white'
-                    : 'text-stone-700 dark:text-stone-300'
-                }`}
-              >
-                हिंदी
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Main Navbar */}
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-        {/* Brand */}
-        <button
-          id="brand-home-link"
-          type="button"
-          onClick={() => onSelectTab('home')}
-          className="flex items-center space-x-3 text-left focus:outline-none group"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
-            <span className="text-2xl font-bold font-serif">सा</span>
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-stone-900 font-heading">
-                Saarthi
-              </h1>
-              <span className="text-xs bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-300">
-                सारथी
-              </span>
-            </div>
-            <p className="text-xs text-stone-500 hidden sm:block">
-              Daily Companion & Guide for Seniors in India
-            </p>
-          </div>
-        </button>
-
-        {/* Emergency SOS Button */}
-        <button
-          id="nav-sos-button"
-          type="button"
-          onClick={onOpenSOS}
-          className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-rose-600/30 active:scale-95 transition-all animate-pulse"
-          title="Open Emergency SOS Help numbers"
-        >
-          <PhoneCall className="w-5 h-5 fill-current" />
-          <span>Emergency SOS / सहायता</span>
-        </button>
-      </div>
-
-      {/* Navigation Tabs */}
-      <nav className="border-t border-stone-200 overflow-x-auto scrollbar-none bg-stone-50/70">
-        <div className="max-w-7xl mx-auto px-4 flex items-center space-x-1 sm:space-x-2 py-1.5 min-w-max">
+      {/* Main 5-Item Navigation Bar (Requirement 8) */}
+      <nav
+        aria-label="Main Navigation"
+        className="max-w-7xl mx-auto px-2 sm:px-4 py-2 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none"
+      >
+        <div className="flex items-center space-x-1 sm:space-x-2">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
-              <button
+              <a
                 key={item.id}
-                id={`tab-btn-${item.id}`}
-                type="button"
-                onClick={() => onSelectTab(item.id)}
-                className={`flex items-center space-x-2 px-3 sm:px-4 py-2 rounded-xl font-semibold text-sm transition-all whitespace-nowrap ${
+                id={`nav-item-${item.id}`}
+                href={item.hash}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onSelectTab(item.id);
+                }}
+                className={`min-h-[48px] px-3 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center space-x-1.5 sm:space-x-2 transition-all shrink-0 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                   isActive
-                    ? 'bg-amber-500 text-white shadow-sm'
-                    : 'text-stone-700 hover:bg-stone-200/70 hover:text-stone-900'
+                    ? 'bg-amber-600 text-white shadow-xs font-extrabold'
+                    : 'text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 border border-transparent hover:border-stone-200 dark:hover:border-stone-700'
                 }`}
               >
-                <span>{item.icon}</span>
+                <span className="text-base sm:text-lg">{item.icon}</span>
                 <span>{item.label}</span>
-              </button>
+              </a>
             );
           })}
+
+          {/* More Menu Item (Requirement 8: Schemes, Guides, Plan, Settings) */}
+          <a
+            id="nav-item-more"
+            href="#more"
+            onClick={(e) => {
+              e.preventDefault();
+              onSelectTab('more');
+            }}
+            className={`min-h-[48px] px-3 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center space-x-1.5 sm:space-x-2 transition-all shrink-0 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+              isMoreActive
+                ? 'bg-amber-600 text-white shadow-xs font-extrabold'
+                : 'text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 border border-transparent hover:border-stone-200 dark:hover:border-stone-700'
+            }`}
+          >
+            <Menu className="w-4 h-4" />
+            <span>{t('moreTab', lang)}</span>
+          </a>
         </div>
+
+        {/* Persistent Floating SOS quick trigger */}
+        <button
+          id="nav-sos-quick-btn"
+          type="button"
+          onClick={onOpenSOS}
+          className="min-h-[48px] px-3.5 sm:px-4 py-2 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs sm:text-sm flex items-center space-x-1.5 shrink-0 shadow-xs transition-colors focus:ring-2 focus:ring-rose-400"
+          title="Emergency 1930 / 112 / Helpline"
+          aria-label="Emergency Helplines"
+        >
+          <PhoneCall className="w-4 h-4 animate-pulse" />
+          <span className="hidden md:inline">1930 / 112</span>
+          <span>SOS</span>
+        </button>
       </nav>
     </header>
   );

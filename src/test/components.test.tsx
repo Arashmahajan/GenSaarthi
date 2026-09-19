@@ -4,69 +4,75 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { Navbar } from '../components/Navbar';
 import { RemindersManager } from '../components/RemindersManager';
 import { PlanMyDay } from '../components/PlanMyDay';
+import { AppProvider } from '../context/AppContext';
 
 describe('Saarthi Frontend Accessible Components', () => {
-  it('Navbar renders brand, accessibility controls, and navigation items', () => {
-    const handleUpdate = vi.fn();
+  it('Navbar renders brand and 5 core navigation items', () => {
     const handleOpenSOS = vi.fn();
     const handleSelectTab = vi.fn();
+    const handleOpenSettings = vi.fn();
 
     render(
-      <Navbar
-        settings={{
-          textSize: 'normal',
-          highContrast: false,
-          darkMode: false,
-          speechRate: 0.85,
-          language: 'en',
-          soundEnabled: true,
-        }}
-        onUpdateSettings={handleUpdate}
-        onOpenSOS={handleOpenSOS}
-        activeTab="home"
-        onSelectTab={handleSelectTab}
-      />
+      <AppProvider>
+        <Navbar
+          activeTab="home"
+          onSelectTab={handleSelectTab}
+          onOpenSOS={handleOpenSOS}
+          onOpenSettings={handleOpenSettings}
+        />
+      </AppProvider>
     );
 
     // Brand check
-    expect(screen.getByText(/Saarthi/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Saarthi/i).length).toBeGreaterThan(0);
 
     // Emergency SOS button
-    const sosBtn = screen.getByTitle(/Open Emergency SOS Help numbers/i);
+    const sosBtn = screen.getByTitle(/Emergency 1930/i);
     expect(sosBtn).toBeInTheDocument();
     fireEvent.click(sosBtn);
     expect(handleOpenSOS).toHaveBeenCalled();
 
-    // Text size switcher buttons
-    const largeBtn = screen.getByRole('button', { name: /^Large$/i });
-    fireEvent.click(largeBtn);
-    expect(handleUpdate).toHaveBeenCalledWith({ textSize: 'large' });
+    // Settings button
+    const settingsBtn = screen.getByTitle(/Accessibility & Settings/i);
+    expect(settingsBtn).toBeInTheDocument();
+    fireEvent.click(settingsBtn);
+    expect(handleOpenSettings).toHaveBeenCalled();
 
-    // Language toggle
-    const hindiBtn = screen.getByText('हिंदी');
-    fireEvent.click(hindiBtn);
-    expect(handleUpdate).toHaveBeenCalledWith({ language: 'hi' });
+    // 5 core navigation items check
+    expect(screen.getByText('Home')).toBeInTheDocument();
+    expect(screen.getByText('Ask')).toBeInTheDocument();
+    expect(screen.getByText('Check')).toBeInTheDocument();
+    expect(screen.getByText('Reminders & Meds')).toBeInTheDocument();
+    expect(screen.getByText('Help & SOS')).toBeInTheDocument();
   });
 
   it('RemindersManager allows adding and viewing reminders', () => {
-    render(<RemindersManager language="en" />);
+    render(
+      <AppProvider>
+        <RemindersManager />
+      </AppProvider>
+    );
 
-    // Check header
-    expect(screen.getByText(/My Daily & Bill Reminders/i)).toBeInTheDocument();
+    // Check empty state
+    expect(screen.getByText(/No reminders scheduled/i)).toBeInTheDocument();
 
     // Add reminder button exists
-    const addBtn = screen.getByRole('button', { name: /Add Reminder/i });
-    expect(addBtn).toBeInTheDocument();
+    const addBtns = screen.getAllByRole('button', { name: /Add Reminder/i });
+    expect(addBtns.length).toBeGreaterThan(0);
   });
 
   it('PlanMyDay renders day planner controls and routine inputs', () => {
-    render(<PlanMyDay language="en" />);
+    render(
+      <AppProvider>
+        <PlanMyDay />
+      </AppProvider>
+    );
 
     // Check title
-    expect(screen.getByText(/Plan a Calm & Unhurried Day/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Plan My Day/i })).toBeInTheDocument();
 
     // Generate schedule button
-    const genBtn = screen.getByRole('button', { name: /Create My Schedule/i });
+    const genBtn = screen.getByRole('button', { name: /Plan My Day Schedule/i });
     expect(genBtn).toBeInTheDocument();
   });
 });

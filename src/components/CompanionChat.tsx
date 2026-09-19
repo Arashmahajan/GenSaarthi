@@ -1,55 +1,93 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Mic, MicOff, Send, Volume2, Sparkles, Loader2, User, Bot, RefreshCw } from 'lucide-react';
-import { ChatMessage, Language } from '../types';
-import { SaarthiVoiceService, startVoiceDictation } from '../utils/speech';
+import {
+  Mic,
+  MicOff,
+  Send,
+  Loader2,
+  Bot,
+  RotateCcw,
+  Sparkles,
+  HelpCircle,
+  AlertCircle,
+} from 'lucide-react';
+import { ChatMessage } from '../types';
+import { startVoiceDictation, isVoiceDictationSupported } from '../utils/speech';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
+import { useApp } from '../context/AppContext';
+import { t } from '../i18n';
 
-interface CompanionChatProps {
-  language: Language;
-}
+export const CompanionChat: React.FC = () => {
+  const { settings } = useApp();
+  const lang = settings.language;
+  const userName = settings.userName;
 
-export const CompanionChat: React.FC<CompanionChatProps> = ({ language }) => {
+  const greetingPrefix = userName ? `Namaste ${userName} ji!` : 'Namaste!';
+  const initialGreeting =
+    lang === 'hi'
+      ? `${userName ? `नमस्ते ${userName} जी!` : 'नमस्ते!'} मैं आपका सारथी साथी हूँ। आप नीचे माइक दबाकर बोल सकते हैं या संदेश लिख सकते हैं। बिजली बिल, संदिग्ध फ़ोन कॉल, स्वास्थ्य नियम, या कोई भी प्रश्न पूछें।`
+      : `${greetingPrefix} I am Saarthi, your caring companion. You can tap the microphone to speak or type any question below. Ask me about bills, suspicious phone calls, health routines, or just have a peaceful chat.`;
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: 'welcome-1',
+      id: 'welcome-msg',
       sender: 'saarthi',
-      text: 'Namaste Uncle ji, Pranam Aunty ji! I am Saarthi, your caring companion. You can speak to me by tapping the microphone or type any question below. How are you feeling today? You can ask me about bills, suspicious phone calls, health routines, or just have a peaceful chat.',
+      text: initialGreeting,
       timestamp: 'Just now',
     },
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+
+  // Voice dictation state
   const [isListening, setIsListening] = useState(false);
-  const dictationControllerRef = useRef<{ stop: () => void } | null>(null);
+  const [dictationStop, setDictationStop] = useState<(() => void) | null>(null);
+  const [dictationError, setDictationError] = useState<string | null>(null);
+
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, streamingText, isLoading]);
 
-  const quickPrompts = [
-    'How do I submit my digital life certificate (Jeevan Pramaan)?',
-    'Someone sent an SMS saying my electricity will be cut tonight. What should I do?',
-    'Share a peaceful Kabir doha or morning wisdom for today',
-    'What are gentle chair exercises for elderly joint pain?',
-    'How to spot a fake WhatsApp forward in India?',
-  ];
+  const quickPrompts =
+    lang === 'hi'
+      ? [
+          'डिजिटल जीवन प्रमाण पत्र (Jeevan Pramaan) कैसे जमा करें?',
+          'किसी ने संदेश भेजा कि रात में बिजली कट जाएगी। क्या करूँ?',
+          'आज के लिए कबीर का कोई शांत दोहा सुनाइए',
+          'बुजुर्गों के घुटने और जोड़ों के लिए सरल व्यायाम बताइए',
+          'फर्जी व्हाट्सएप संदेश कैसे पहचानें?',
+        ]
+      : [
+          'How do I submit my digital life certificate (Jeevan Pramaan)?',
+          'Someone sent an SMS saying electricity will be cut tonight. What should I do?',
+          'Share a peaceful Kabir doha or morning wisdom for today',
+          'What are gentle chair exercises for elderly joint pain?',
+          'How to spot a fake WhatsApp forward in India?',
+        ];
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const query = textToSend || inputValue;
-    if (!query.trim()) return;
+  const handleSendMessage = async (textToSend?: string, isExplainAgain = false) => {
+    const query = (textToSend !== undefined ? textToSend : inputValue).trim();
+    if (!query) return;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text: query.trim(),
+      text: isExplainAgain
+        ? lang === 'hi'
+          ? 'कृपया इसे और सरल शब्दों में दोबारा समझाइए।'
+          : 'Could you please explain that again in simpler words?'
+        : query,
       timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    if (!textToSend) setInputValue('');
+    if (textToSend === undefined) setInputValue('');
     setIsLoading(true);
+    setStreamingText(null);
 
+    // Try SSE streaming first (Requirement 6)
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -57,245 +95,349 @@ export const CompanionChat: React.FC<CompanionChatProps> = ({ language }) => {
         body: JSON.stringify({
           message: query,
           conversationHistory: messages,
-          language,
+          language: lang,
+          userName: userName || undefined,
+          stream: true,
         }),
       });
 
-      const data = await response.json();
+      if (!response.ok || !response.body) {
+        throw new Error('Streaming failed, fallback to JSON');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const raw = decoder.decode(value, { stream: true });
+        const lines = raw.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.replace('data: ', '').trim();
+            if (dataStr === '[DONE]') {
+              continue;
+            }
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.chunk) {
+                accumulated += parsed.chunk;
+                setStreamingText(accumulated);
+              }
+            } catch {
+              // ignore malformed chunks
+            }
+          }
+        }
+      }
+
+      const finalText = accumulated.trim();
+      if (!finalText) {
+        throw new Error('Empty streamed text');
+      }
+
       const botReply: ChatMessage = {
         id: `saarthi-${Date.now()}`,
         sender: 'saarthi',
-        text: data.reply || 'Namaste! I am right here with you. How can I assist you further?',
+        text: finalText,
         timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       };
 
       setMessages((prev) => [...prev, botReply]);
+      setStreamingText(null);
+    } catch {
+      // Non-streaming JSON fallback
+      try {
+        const fallbackRes = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: query,
+            conversationHistory: messages,
+            language: lang,
+            userName: userName || undefined,
+            stream: false,
+          }),
+        });
 
-      // Automatically speak the response gently for the senior
-      SaarthiVoiceService.speak(botReply.text, 0.85);
-    } catch (err) {
-      console.error(err);
-      const fallback: ChatMessage = {
-        id: `saarthi-err-${Date.now()}`,
-        sender: 'saarthi',
-        text: 'Namaste Uncle ji! I had a slight trouble with the connection. Please ask again, I am right by your side.',
-        timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, fallback]);
+        if (!fallbackRes.ok) {
+          throw new Error('API failed');
+        }
+
+        const data = await fallbackRes.json();
+        const replyText = data.reply || t('chatErrorPolite', lang);
+
+        const botReply: ChatMessage = {
+          id: `saarthi-${Date.now()}`,
+          sender: 'saarthi',
+          text: replyText,
+          timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        };
+
+        setMessages((prev) => [...prev, botReply]);
+      } catch {
+        // Polite error retry prompt (Requirement 6)
+        const politeError: ChatMessage = {
+          id: `saarthi-err-${Date.now()}`,
+          sender: 'saarthi',
+          text: t('chatErrorPolite', lang),
+          timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, politeError]);
+      } finally {
+        setStreamingText(null);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleExplainAgain = (previousMessageText: string) => {
+    const prompt =
+      lang === 'hi'
+        ? `कृपया इसे और अधिक सरल, स्पष्ट भाषा में दूसरे उदाहरण देकर दोबारा समझाइए: "${previousMessageText.slice(0, 150)}"`
+        : `Could you please explain this again in simpler terms with different examples: "${previousMessageText.slice(0, 150)}"?`;
+    handleSendMessage(prompt, true);
+  };
+
   const handleToggleMic = () => {
     if (isListening) {
-      dictationControllerRef.current?.stop();
+      if (dictationStop) dictationStop();
       setIsListening(false);
-    } else {
+      setDictationStop(null);
+      return;
+    }
+
+    if (!isVoiceDictationSupported()) {
+      setDictationError(t('micNotSupported', lang));
+      setTimeout(() => setDictationError(null), 4000);
+      return;
+    }
+
+    setDictationError(null);
+    const recognition = startVoiceDictation(
+      (transcript) => {
+        setInputValue(transcript);
+        setIsListening(false);
+        setDictationStop(null);
+        handleSendMessage(transcript);
+      },
+      () => {
+        setIsListening(false);
+        setDictationStop(null);
+      },
+      (err) => {
+        setDictationError(err);
+        setIsListening(false);
+        setDictationStop(null);
+        setTimeout(() => setDictationError(null), 4000);
+      },
+      lang === 'hi' ? 'hi-IN' : 'en-IN'
+    );
+
+    if (recognition) {
       setIsListening(true);
-      dictationControllerRef.current = startVoiceDictation(
-        (transcript) => {
-          setInputValue(transcript);
-          setIsListening(false);
-          // Auto send after speech
-          handleSendMessage(transcript);
-        },
-        () => {
-          setIsListening(false);
-        },
-        (error) => {
-          console.warn('Voice error:', error);
-          setIsListening(false);
-        },
-        language === 'hi' ? 'hi-IN' : 'en-IN'
-      );
+      setDictationStop(() => recognition.stop);
     }
   };
 
   return (
     <div id="companion-chat-section" className="space-y-6 max-w-4xl mx-auto">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-amber-200 rounded-3xl p-5 md:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-200/80 text-amber-900 font-bold text-xs uppercase tracking-wide">
-              <Bot className="w-4 h-4 text-amber-800" />
-              <span>सारथी साथी • Voice-First Companion</span>
+      <div className="bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-800 dark:text-amber-300">
+              <Bot className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-black text-stone-900 font-heading">
-              Talk to Saarthi (सारथी से बात करें)
-            </h2>
-            <p className="text-stone-600 text-sm md:text-base leading-relaxed">
-              Ask anything in plain language or Hindi. Tap the large microphone button to speak instead of typing.
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100 font-heading">
+              {t('askTab', lang)}
+            </h1>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              id="clear-chat-btn"
-              type="button"
-              onClick={() =>
-                setMessages([
-                  {
-                    id: 'welcome-reset',
-                    sender: 'saarthi',
-                    text: 'Namaste! Chat cleared. What would you like to talk about today?',
-                    timestamp: 'Just now',
-                  },
-                ])
-              }
-              className="p-2 rounded-xl text-stone-600 hover:bg-stone-200/70 border border-stone-300 text-xs font-semibold flex items-center gap-1"
-              title="Reset conversation"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Reset Chat</span>
-            </button>
-          </div>
+          <p className="text-stone-700 dark:text-stone-300 text-base leading-relaxed">
+            {lang === 'hi'
+              ? 'सारथी आपके हर सवाल का सरल भाषा में जवाब देगा। बोलकर या लिखकर पूछें।'
+              : 'Speak or type any question about bills, messages, government schemes, or health routines.'}
+          </p>
         </div>
 
-        {/* Quick Question Chips */}
-        <div className="mt-4 pt-3 border-t border-amber-200/80">
-          <span className="text-xs font-bold text-stone-700 uppercase tracking-wider block mb-2">
-            Suggested Elder Topics (Tap to ask):
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {quickPrompts.map((q, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleSendMessage(q)}
-                className="text-left px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 border border-amber-200 text-xs text-stone-800 font-medium transition-all shadow-2xs active:scale-98"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() =>
+            setMessages([
+              {
+                id: 'welcome-reset',
+                sender: 'saarthi',
+                text: initialGreeting,
+                timestamp: 'Just now',
+              },
+            ])
+          }
+          className="min-h-[48px] px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 text-sm font-semibold flex items-center space-x-1.5 self-start sm:self-center transition-colors"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>{lang === 'hi' ? 'नई बातचीत' : 'New Chat'}</span>
+        </button>
+      </div>
+
+      {/* Suggested Quick Questions */}
+      <div className="flex flex-wrap gap-2">
+        {quickPrompts.map((prompt, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => handleSendMessage(prompt)}
+            className="min-h-[44px] text-xs font-semibold px-3.5 py-2 rounded-xl bg-white dark:bg-stone-800 hover:bg-amber-50 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-left transition-colors shadow-2xs"
+          >
+            {prompt}
+          </button>
+        ))}
       </div>
 
       {/* Chat Messages Log */}
-      <div className="bg-white border-2 border-stone-200 rounded-3xl p-5 md:p-6 shadow-sm min-h-[420px] max-h-[560px] overflow-y-auto space-y-4">
+      <div
+        id="chat-messages-container"
+        className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-4 sm:p-6 min-h-[380px] max-h-[550px] overflow-y-auto space-y-4 shadow-xs"
+      >
         {messages.map((msg) => {
-          const isUser = msg.sender === 'user';
+          const isSaarthi = msg.sender === 'saarthi';
           return (
             <div
               key={msg.id}
-              className={`flex items-start space-x-3 ${isUser ? 'justify-end' : 'justify-start'}`}
+              className={`flex flex-col ${isSaarthi ? 'items-start' : 'items-end'} space-y-1.5`}
             >
-              {!isUser && (
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold font-serif shrink-0 shadow-xs">
-                  सा
-                </div>
-              )}
-
               <div
-                className={`max-w-[85%] rounded-3xl p-4 md:p-5 text-base md:text-lg leading-relaxed shadow-2xs ${
-                  isUser
-                    ? 'bg-amber-500 text-white rounded-br-xs'
-                    : 'bg-stone-50 border border-stone-200 text-stone-900 rounded-bl-xs'
+                className={`max-w-[88%] sm:max-w-[80%] rounded-2xl p-4 sm:p-5 text-base leading-relaxed ${
+                  isSaarthi
+                    ? 'bg-amber-50/80 dark:bg-stone-800 text-stone-900 dark:text-stone-100 border border-amber-200/80 dark:border-stone-700'
+                    : 'bg-stone-900 dark:bg-amber-600 text-white dark:text-stone-900'
                 }`}
               >
                 <div className="whitespace-pre-wrap">{msg.text}</div>
 
-                <div className="mt-2 pt-2 border-t border-stone-200/60 flex items-center justify-between gap-3 text-xs">
-                  <span className={isUser ? 'text-amber-100' : 'text-stone-400'}>
-                    {msg.timestamp}
-                  </span>
+                <div
+                  className={`mt-3 pt-2 flex flex-wrap items-center justify-between gap-2 text-xs border-t ${
+                    isSaarthi
+                      ? 'border-amber-200/60 dark:border-stone-700 text-stone-500 dark:text-stone-400'
+                      : 'border-white/20 text-stone-300 dark:text-stone-800'
+                  }`}
+                >
+                  <span>{msg.timestamp}</span>
 
-                  {!isUser && (
-                    <VoiceSpeakerButton
-                      textToSpeak={msg.text}
-                      label="Listen / सुनें"
-                      size="sm"
-                    />
+                  {isSaarthi && (
+                    <div className="flex items-center space-x-2">
+                      <VoiceSpeakerButton
+                        textToSpeak={msg.text}
+                        lang={lang === 'hi' ? 'hi-IN' : 'en-IN'}
+                        speechRate={settings.speechRate}
+                        size="sm"
+                      />
+
+                      {/* Explain it again button (Requirement 6) */}
+                      <button
+                        type="button"
+                        onClick={() => handleExplainAgain(msg.text)}
+                        className="min-h-[44px] px-2.5 py-1 rounded-lg border border-amber-300 dark:border-stone-600 hover:bg-amber-100 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-semibold text-xs flex items-center space-x-1 transition-colors"
+                        title={t('explainAgain', lang)}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+                        <span>{t('explainAgain', lang)}</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
-
-              {isUser && (
-                <div className="w-10 h-10 rounded-2xl bg-stone-800 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <User className="w-5 h-5" />
-                </div>
-              )}
             </div>
           );
         })}
 
-        {isLoading && (
-          <div className="flex items-center space-x-3 text-stone-500 text-sm">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold font-serif shrink-0">
-              सा
+        {/* Live Streaming Response Bubble */}
+        {streamingText && (
+          <div className="flex flex-col items-start space-y-1.5">
+            <div className="max-w-[88%] sm:max-w-[80%] rounded-2xl p-4 sm:p-5 text-base leading-relaxed bg-amber-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 border border-amber-300 dark:border-stone-700">
+              <div className="whitespace-pre-wrap">{streamingText}</div>
+              <div className="mt-2 text-xs text-amber-700 dark:text-amber-400 flex items-center space-x-1.5 animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>{lang === 'hi' ? 'सारथी सोच रहा है...' : 'Saarthi is replying...'}</span>
+              </div>
             </div>
-            <div className="bg-stone-100 rounded-2xl px-4 py-3 flex items-center space-x-2">
-              <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
-              <span>Saarthi is thinking with care...</span>
-            </div>
+          </div>
+        )}
+
+        {/* Loading Spinner Indicator */}
+        {isLoading && !streamingText && (
+          <div className="flex items-center space-x-2 text-stone-500 dark:text-stone-400 text-sm p-3">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
+            <span>{lang === 'hi' ? 'सारथी सोच रहा है...' : 'Thinking carefully...'}</span>
           </div>
         )}
 
         <div ref={chatBottomRef} />
       </div>
 
-      {/* Input & Voice Controls */}
-      <div className="bg-white border-2 border-stone-200 rounded-3xl p-3 md:p-4 shadow-sm space-y-3">
-        {isListening && (
-          <div className="p-3 bg-rose-50 border border-rose-300 rounded-2xl text-rose-900 text-sm font-bold flex items-center justify-between animate-pulse">
-            <div className="flex items-center space-x-2">
-              <span className="w-3 h-3 rounded-full bg-rose-600 animate-ping" />
-              <span>Listening to your voice... Speak comfortably in English or Hindi!</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleMic}
-              className="text-xs px-3 py-1 bg-rose-600 text-white rounded-lg"
-            >
-              Stop Mic
-            </button>
-          </div>
-        )}
-
-        <div className="flex items-center space-x-2">
-          {/* Large Senior Mic Button */}
-          <button
-            id="chat-mic-btn"
-            type="button"
-            onClick={handleToggleMic}
-            className={`p-3.5 md:p-4 rounded-2xl transition-all flex items-center justify-center shadow-md active:scale-95 shrink-0 ${
-              isListening
-                ? 'bg-rose-600 text-white animate-pulse'
-                : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
-            }`}
-            title="Tap to speak in voice"
-          >
-            {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-          </button>
-
-          {/* Text Input */}
-          <input
-            id="chat-text-input"
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSendMessage();
-            }}
-            placeholder="Type your question or tap mic to speak..."
-            className="flex-1 p-3.5 md:p-4 rounded-2xl border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-base md:text-lg text-stone-900"
-          />
-
-          {/* Send Button */}
-          <button
-            id="chat-send-btn"
-            type="button"
-            onClick={() => handleSendMessage()}
-            disabled={isLoading || !inputValue.trim()}
-            className="p-3.5 md:p-4 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold transition-all shadow-md active:scale-95 shrink-0"
-            title="Send question"
-          >
-            <Send className="w-6 h-6" />
-          </button>
+      {/* Dictation error notice if any */}
+      {dictationError && (
+        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs font-semibold flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{dictationError}</span>
         </div>
-      </div>
+      )}
+
+      {/* Input Form & Large Mic Button */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSendMessage();
+        }}
+        className="flex items-center gap-2 sm:gap-3"
+      >
+        <button
+          type="button"
+          onClick={handleToggleMic}
+          className={`min-h-[48px] min-w-[48px] px-4 py-3 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shrink-0 shadow-xs ${
+            isListening
+              ? 'bg-rose-600 text-white animate-pulse'
+              : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/80 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800'
+          }`}
+          title={isListening ? t('stopAudio', lang) : t('speak', lang)}
+          aria-label={isListening ? t('stopAudio', lang) : t('speak', lang)}
+        >
+          {isListening ? (
+            <>
+              <MicOff className="w-5 h-5" />
+              <span className="hidden sm:inline">{t('listening', lang)}</span>
+            </>
+          ) : (
+            <>
+              <Mic className="w-5 h-5 text-amber-800 dark:text-amber-300" />
+              <span className="hidden sm:inline">{t('speak', lang)}</span>
+            </>
+          )}
+        </button>
+
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder={t('chatInputPlaceholder', lang)}
+          disabled={isLoading}
+          className="flex-1 min-h-[48px] px-4 py-3 rounded-2xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-base focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none placeholder:text-stone-400 dark:placeholder:text-stone-500"
+        />
+
+        <button
+          type="submit"
+          disabled={isLoading || !inputValue.trim()}
+          className="min-h-[48px] min-w-[48px] px-5 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 disabled:bg-stone-300 dark:disabled:bg-stone-800 disabled:text-stone-500 text-white font-bold transition-colors shrink-0 flex items-center justify-center shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+          title={t('send', lang)}
+          aria-label={t('send', lang)}
+        >
+          <Send className="w-5 h-5" />
+        </button>
+      </form>
     </div>
   );
 };

@@ -22,19 +22,14 @@ chatRouter.post('/chat', async (req: Request, res: Response, next: NextFunction)
     const { message, conversationHistory, language, userName, stream } = validation.data;
     const systemInstruction = getSeniorSystemInstruction(language, userName);
 
-    // Prepare contents array for Gemini
-    const contents: any[] = [];
-    for (const turn of conversationHistory) {
-      contents.push({
-        role: turn.role,
-        parts: [{ text: turn.text }],
-      });
-    }
-
-    contents.push({
-      role: 'user',
-      parts: [{ text: getChatUserPrompt(message) }],
-    });
+    // Prepare contents array for Gemini safely without client-controlled model role injection
+    const promptText = getChatUserPrompt(message, conversationHistory);
+    const contents: any[] = [
+      {
+        role: 'user',
+        parts: [{ text: promptText }],
+      },
+    ];
 
     // If client requested SSE streaming
     if (stream) {

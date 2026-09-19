@@ -2,7 +2,16 @@
 
 @layer base {
   html {
-    font-size: 19px;
+    font-size: 16px;
+  }
+  html[data-text-size="normal"] {
+    font-size: 16px;
+  }
+  html[data-text-size="large"] {
+    font-size: 18px;
+  }
+  html[data-text-size="extra-large"] {
+    font-size: 20px;
   }
   body {
     font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;

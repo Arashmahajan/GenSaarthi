@@ -1,121 +1,79 @@
-import { DocumentAnalysisResult, MedicineItem, SeniorScheme, DigitalGuide, ScamCheckResult } from '../types';
-
-export const SAMPLE_DOCUMENTS = [
-  {
-    id: 'bescom-bill',
-    title: 'BESCOM Electricity Bill (Bangalore)',
-    category: 'Electricity Bill',
-    snippet: `BANGALORE ELECTRICITY SUPPLY COMPANY LIMITED (BESCOM)
-Consumer ID: 7492019482 | RR No: E3-4921
-Billing Period: 01-Sep-2024 to 30-Sep-2024
-Units Consumed: 184 kWh (LT-2 Domestic Tariff)
-Energy Charges: ₹ 1,288.00
-Fixed Minimum Charges: ₹ 220.00
-Fuel Adjustment Charge (FAC): ₹ 84.50
-Electricity Duty (9%): ₹ 143.32
-Arrears: ₹ 0.00
-Interest on Arrears: ₹ 0.00
-Total Net Payable Amount: ₹ 1,735.82 (Rounded: ₹ 1,736.00)
-Due Date for Payment: 24-Oct-2024
-Disconnection Notice Date: 08-Nov-2024 if unpaid.
-Late Payment Surcharge: ₹ 50.00 after due date.
-Payment Mode: Online portal bescom.karnataka.gov.in or BBPS apps.`,
-  },
-  {
-    id: 'doctor-prescription',
-    title: 'Dr. Sharma Clinic - Health Prescription',
-    category: 'Doctor Prescription',
-    snippet: `DR. A.K. SHARMA, MD (Medicine), Senior Consultant Physician
-Patient: Ramesh Chandra Gupta, Age: 68 Yrs, Male
-Diagnosis: Essential Hypertension, Type-2 Diabetes Mellitus (Controlled)
-Vitals: BP: 138/86 mmHg | Fasting Sugar: 122 mg/dL | Weight: 71 kg
-
-Rx (Prescription):
-1. Tab. TELMA 40 (Telmisartan 40mg) - 1 tab OD (Morning after breakfast) x 30 days
-2. Tab. GLYCOMET 500 SR (Metformin 500mg) - 1 tab BD (After lunch & dinner) x 30 days
-3. Tab. ATORVA 10 (Atorvastatin 10mg) - 1 tab HS (Bedtime) x 30 days
-4. Tab. SHELCAL 500 (Calcium + Vit D3) - 1 tab OD (Afternoon after lunch) x 30 days
-
-Diet & Advice:
-- Brisk 30-minute morning walk in open sunlight.
-- Low salt diet (less than 1 teaspoon/day). Avoid deep fried snacks.
-- Adequate hydration: 2 to 2.5 litres lukewarm water daily.
-- Review after 1 month with fasting sugar and home BP log.`,
-  },
-  {
-    id: 'bank-sms',
-    title: 'State Bank of India - Debit SMS Alert',
-    category: 'Bank Notification',
-    snippet: `Dear Customer, A/C No. ending with XX4921 has been debited by INR 3,450.00 on 14-Oct-24 11:42 AM via UPI/P2M to D-MART SUPERMARKET BLR Ref No 428819201948.
-Available Balance in A/C: INR 64,820.50.
-If not done by you, immediately forward this SMS to 9223008333 or call 18001234 to block your UPI and NetBanking. - SBI`,
-  },
-  {
-    id: 'pension-ppo',
-    title: 'Central Pension Accounting Office (CPAO) Notice',
-    category: 'Pension Notice',
-    snippet: `CENTRAL PENSION ACCOUNTING OFFICE, GOVT OF INDIA
-To: Pensioner Shri V. Ramanathan | PPO Number: 249018204918
-Subject: Dearness Relief (DR) revision and Annual Life Certificate Submission 2024.
-1. Dearness Relief for Central Government pensioners enhanced by 3% from 50% to 53% effective 01-July-2024.
-2. Pensioners aged 80 years and above are permitted to submit Life Certificate from 01-October-2024.
-3. Other pensioners (60 to 79 years) must submit Jeevan Pramaan during the period 01-November-2024 to 30-November-2024 to ensure non-stoppage of monthly pension from December.
-4. Submission can be done via Face Authentication App on mobile phone without visiting bank branch.`,
-  },
-];
-
-export const SAMPLE_SCAMS = [
-  {
-    id: 'electricity-scam',
-    title: 'Fake Electricity Cut-off SMS',
-    category: 'Utility Threat Scam',
-    sampleText: `Dear consumer, your electricity power will be disconnected tonight at 9.30 PM from electricity office because your previous month bill was not updated. Please immediately contact our electricity officer Mr. R.K. Verma at 9811452910. Thanks.`,
-    verdict: 'DANGER_SCAM' as const,
-    riskScore: 99,
-  },
-  {
-    id: 'sbi-kyc-scam',
-    title: 'SBI YONO / PAN Expired Phishing',
-    category: 'Banking Phishing',
-    sampleText: `Dear SBI User, your YONO account and debit card has been blocked today because your PAN Card is not linked. Please click on http://sbi-pan-kyc-update.online/login to update your Aadhaar within 24 hours to avoid permanent account closure.`,
-    verdict: 'DANGER_SCAM' as const,
-    riskScore: 98,
-  },
-  {
-    id: 'digital-arrest-scam',
-    title: 'Fake Police / Digital Arrest Extortion',
-    category: 'Digital Arrest Threat',
-    sampleText: `This is Inspector Sharma from Mumbai Crime Branch and Narcotics Control Bureau. A parcel sent in your name to Cambodia has been seized with 5 fake passports and 140 grams of MDMA drugs. You are placed under Digital Arrest. You must stay on WhatsApp video call in a locked room and transfer verification deposit to RBI safety locker account.`,
-    verdict: 'DANGER_SCAM' as const,
-    riskScore: 100,
-  },
-  {
-    id: 'kbc-lottery-scam',
-    title: 'KBC ₹25 Lakh WhatsApp Lottery',
-    category: 'Fake Lottery',
-    sampleText: `Congratulations! Your WhatsApp mobile number has won ₹25,00,000 in Kaun Banega Crorepati lucky draw 2024. To claim your prize money in your bank account, call KBC Manager Rana Pratap Singh at +92-301-4458921 and pay ₹12,500 government tax certificate fees.`,
-    verdict: 'DANGER_SCAM' as const,
-    riskScore: 99,
-  },
-];
-
-export const SAMPLE_TUTORIAL_MEDICINE: MedicineItem = {
-  id: 'sample-tutorial-med',
-  name: 'Vitamin D3 (Demo / Sample Only)',
-  dosage: '1 Tablet (As advised by your physician)',
-  timing: 'morning',
-  timeLabel: 'Morning (9:00 AM)',
-  withFood: 'after_food',
-  purpose: 'Demonstration pill: Please add your own doctor-prescribed medicines.',
-  colorBadge: 'bg-amber-100 text-amber-800 border-amber-300',
-  pillIconType: 'tablet',
-  remainingPills: 15,
-  initialPills: 15,
-  doctorNotes: 'Demonstration only. Always consult your personal physician or pharmacist.',
-  isSample: true,
-};
+import { MedicineItem, SeniorScheme, DigitalGuide, GeneralReminder, EmergencyContact } from '../types';
 
 export const DEFAULT_MEDICINES: MedicineItem[] = [];
+
+export const DEMO_MEDICINES: MedicineItem[] = [
+  {
+    id: 'demo-med-1',
+    name: 'Telma 40 (Demo sample - not real)',
+    dosage: '1 Tablet',
+    timing: 'morning',
+    timeLabel: 'Morning (08:30 AM)',
+    withFood: 'after_food',
+    purpose: 'Sample Blood Pressure medicine',
+    colorBadge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    pillIconType: 'tablet',
+    remainingPills: 18,
+    initialPills: 30,
+    doctorNotes: 'Demo data only. Consult your doctor for actual medicines.',
+    isSample: true,
+  },
+  {
+    id: 'demo-med-2',
+    name: 'Shelcal 500 (Demo sample - not real)',
+    dosage: '1 Tablet',
+    timing: 'afternoon',
+    timeLabel: 'Afternoon (02:00 PM)',
+    withFood: 'after_food',
+    purpose: 'Sample Calcium supplement',
+    colorBadge: 'bg-amber-100 text-amber-800 border-amber-300',
+    pillIconType: 'tablet',
+    remainingPills: 4, // Trigger running low warning (< 5)
+    initialPills: 15,
+    doctorNotes: 'Demo data only. Consult your doctor for actual medicines.',
+    isSample: true,
+  },
+];
+
+export const DEMO_REMINDERS: GeneralReminder[] = [
+  {
+    id: 'demo-rem-1',
+    title: 'Electricity Bill Payment (Demo)',
+    dueDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
+    dueTime: '11:00',
+    note: 'Demo reminder for electricity bill. Amount ₹1,736.',
+    isCompleted: false,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-rem-2',
+    title: 'Dr. Sharma Health Review (Demo)',
+    dueDate: new Date(Date.now() + 86400000 * 5).toISOString().slice(0, 10),
+    dueTime: '10:30',
+    note: 'Demo reminder for clinic visit with fasting blood sugar report.',
+    isCompleted: false,
+    createdAt: new Date().toISOString(),
+  },
+];
+
+export const DEMO_CONTACTS: EmergencyContact[] = [
+  {
+    id: 'demo-contact-1',
+    name: 'Son (Demo - not real)',
+    relation: 'Son',
+    phone: '+91 00000 00000',
+    isPrimary: true,
+    isDemo: true,
+  },
+  {
+    id: 'demo-contact-2',
+    name: 'Daughter (Demo - not real)',
+    relation: 'Daughter',
+    phone: '+91 00000 00001',
+    isPrimary: false,
+    isDemo: true,
+  },
+];
 
 export const SENIOR_SCHEMES: SeniorScheme[] = [
   {
@@ -144,6 +102,7 @@ export const SENIOR_SCHEMES: SeniorScheme[] = [
     howToApply: 'Download Ayushman App on mobile or visit beneficiary.nha.gov.in. Complete e-KYC using Aadhaar OTP or Face Authentication.',
     officialPortalUrl: 'https://beneficiary.nha.gov.in',
     helpline: '14555 (Toll Free National Health Authority)',
+    checkedOn: '15-Jan-2026',
   },
   {
     id: 'scss',
@@ -151,10 +110,10 @@ export const SENIOR_SCHEMES: SeniorScheme[] = [
     hindiName: 'वरिष्ठ नागरिक बचत योजना',
     category: 'savings',
     minAge: 60,
-    shortDesc: 'Highest government-guaranteed interest rate (8.2% p.a.) with quarterly interest payout directly to your savings bank account.',
+    shortDesc: 'Government-guaranteed interest rate (8.2% p.a.) with quarterly interest payout directly to your savings bank account.',
     benefits: [
       'Attractive 8.2% annual interest backed by Govt of India',
-      'Regular quarterly pension-like payout in Jan, April, July, Oct',
+      'Regular quarterly payout in Jan, April, July, Oct',
       'Investment limit up to ₹30,00,000 (30 Lakhs)',
       '5-year tenure with option to extend for another 3 years',
       'Tax deduction under Section 80C up to ₹1.5 Lakh'
@@ -171,7 +130,9 @@ export const SENIOR_SCHEMES: SeniorScheme[] = [
       'Cheque for initial deposit'
     ],
     howToApply: 'Visit any Post Office or authorized bank (SBI, PNB, Canara, Bank of Baroda, ICICI, HDFC) and fill Form-A.',
+    officialPortalUrl: 'https://www.indiapost.gov.in',
     helpline: '1800-266-6868 (India Post)',
+    checkedOn: '15-Jan-2026',
   },
   {
     id: 'jeevan-pramaan',
@@ -198,6 +159,7 @@ export const SENIOR_SCHEMES: SeniorScheme[] = [
     howToApply: 'Install "AadhaarFaceRD" and "Jeevan Pramaan" app from Google Play Store. Enter Aadhaar and PPO, then look into the front camera and blink for face match.',
     officialPortalUrl: 'https://jeevanpramaan.gov.in',
     helpline: '1800-111-555 (Jeevan Pramaan Helpdesk)',
+    checkedOn: '15-Jan-2026',
   },
   {
     id: 'tax-80ttb',
@@ -219,7 +181,9 @@ export const SENIOR_SCHEMES: SeniorScheme[] = [
       'Form 15H submitted to your bank branch or NetBanking annually in April'
     ],
     howToApply: 'Submit Form 15H at the beginning of each financial year to your bank so they do not deduct TDS.',
+    officialPortalUrl: 'https://incometaxindia.gov.in',
     helpline: '1800-180-1961 (Income Tax Department)',
+    checkedOn: '15-Jan-2026',
   },
   {
     id: 'railway-lower-berth',
@@ -244,6 +208,7 @@ export const SENIOR_SCHEMES: SeniorScheme[] = [
     howToApply: 'When booking on IRCTC app, select the "Lower Berth / Senior Citizen" reservation choice option.',
     officialPortalUrl: 'https://irctc.co.in',
     helpline: '139 (Rail Madad Helpline)',
+    checkedOn: '15-Jan-2026',
   },
 ];
 

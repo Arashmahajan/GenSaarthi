@@ -3,114 +3,145 @@ import {
   ShieldAlert,
   ShieldCheck,
   AlertTriangle,
-  FileText,
-  Upload,
   Camera,
-  CheckCircle2,
   Calendar,
   Pill,
-  Sparkles,
   PhoneCall,
   Loader2,
   X,
-  Share2,
+  Mic,
+  MicOff,
+  Users,
+  CheckCircle2,
 } from 'lucide-react';
-import { UnifiedCheckResult, Language, GeneralReminder, MedicineItem } from '../types';
+import { UnifiedCheckResult } from '../types';
 import { compressImageFile } from '../utils/imageCompressor';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
+import { useApp } from '../context/AppContext';
+import { t } from '../i18n';
+import { startVoiceDictation, isVoiceDictationSupported } from '../utils/speech';
+import { PrivacyNoticeModal } from './modals/PrivacyNoticeModal';
+import { ConfirmAddMedicineModal } from './modals/ConfirmAddMedicineModal';
+import { ConfirmAddReminderModal } from './modals/ConfirmAddReminderModal';
+import { TellFamilyModal } from './modals/TellFamilyModal';
 
-interface UnifiedCheckerProps {
-  language: Language;
-  onAddReminder?: (reminder: { title: string; dueDate: string | null; note: string }) => void;
-  onAddMedicine?: (medicine: { name: string; timing: string }) => void;
-}
+export const UnifiedChecker: React.FC = () => {
+  const { settings, privacySeen, setIsSOSOpen, setSOSTargetNumber } = useApp();
+  const lang = settings.language;
 
-const SAMPLE_CHECKS = [
-  {
-    id: 'sbi-kyc',
-    label: '⚠️ Fake SBI KYC SMS',
-    text: 'Dear customer, your SBI account is blocked today due to pending PAN KYC. Click http://bit.ly/sbi-pan to verify now or share OTP.',
-  },
-  {
-    id: 'electricity-threat',
-    label: '⚠️ Fake Power Cut Tonight',
-    text: 'Dear consumer, electricity will be disconnected tonight at 9:30 PM from the power office because your previous month bill was not updated. Immediately call 9876543210.',
-  },
-  {
-    id: 'genuine-bill',
-    label: '📄 Genuine Electricity Bill',
-    text: 'BESCOM Electricity Bill: Consumer No 5420199. Billing Period: Sept 2024. Total Amount Due: ₹ 1,450. Due Date: 28th October 2024. Units consumed: 120 KWh.',
-  },
-  {
-    id: 'courier-delivery',
-    label: '📦 Normal Delivery Note',
-    text: 'Your BlueDart parcel is out for delivery with our executive today. Please be available at your home address.',
-  },
-  {
-    id: 'prescription',
-    label: '💊 Prescription Note',
-    text: 'Rx Dr. Sharma: Tab Telmisartan 40mg once daily in the morning after breakfast. Check blood pressure every month.',
-  },
-];
-
-export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
-  language,
-  onAddReminder,
-  onAddMedicine,
-}) => {
   const [inputText, setInputText] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<UnifiedCheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [addedReminderMessage, setAddedReminderMessage] = useState(false);
-  const [addedMedicineMessage, setAddedMedicineMessage] = useState(false);
 
-  const handleLoadSample = (text: string) => {
-    setInputText(text);
-    setImagePreview(null);
-    setError(null);
-    setResult(null);
-    setAddedReminderMessage(false);
-    setAddedMedicineMessage(false);
+  // Dictation state
+  const [isDictating, setIsDictating] = useState(false);
+  const [dictationStop, setDictationStop] = useState<(() => void) | null>(null);
+  const [dictationError, setDictationError] = useState<string | null>(null);
+
+  // Modals state
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  const [medicineModalOpen, setMedicineModalOpen] = useState(false);
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [tellFamilyModalOpen, setTellFamilyModalOpen] = useState(false);
+
+  // Toast confirmations
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleImageFile = async (file: File) => {
+  const handleImageSelect = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      setError('Please select an image file (JPEG, PNG, or WebP).');
+      setError(lang === 'hi' ? 'कृपया केवल फ़ोटो फ़ाइल चुनें (JPEG, PNG, WebP)।' : 'Please select an image file (JPEG, PNG, or WebP).');
       return;
     }
 
+    // Privacy note check (Requirement 7)
+    if (!privacySeen) {
+      setPendingFile(file);
+      setShowPrivacyModal(true);
+      return;
+    }
+
+    processImageFile(file);
+  };
+
+  const processImageFile = async (file: File) => {
     try {
       setIsCompressing(true);
       setError(null);
-      // Canvas compression to max 1280px, quality 0.8
       const compressedDataUrl = await compressImageFile(file);
       setImagePreview(compressedDataUrl);
       setInputText('');
     } catch (err) {
       console.error(err);
-      setError('Could not process this photo. Please try another one.');
+      setError(lang === 'hi' ? 'फ़ोटो तैयार नहीं की जा सकी। कृपया दूसरी फ़ोटो चुनें।' : 'Could not process this photo. Please try another one.');
     } finally {
       setIsCompressing(false);
     }
   };
 
+  const handlePrivacyDismissed = () => {
+    setShowPrivacyModal(false);
+    if (pendingFile) {
+      processImageFile(pendingFile);
+      setPendingFile(null);
+    }
+  };
+
+  const handleToggleDictation = () => {
+    if (isDictating) {
+      if (dictationStop) dictationStop();
+      setIsDictating(false);
+      setDictationStop(null);
+      return;
+    }
+
+    if (!isVoiceDictationSupported()) {
+      setDictationError(t('micNotSupported', lang));
+      setTimeout(() => setDictationError(null), 4000);
+      return;
+    }
+
+    setDictationError(null);
+    const recognition = startVoiceDictation(
+      (transcript) => {
+        setInputText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      },
+      () => {
+        setIsDictating(false);
+        setDictationStop(null);
+      },
+      (err) => {
+        setDictationError(err);
+        setIsDictating(false);
+        setDictationStop(null);
+        setTimeout(() => setDictationError(null), 4000);
+      },
+      lang === 'hi' ? 'hi-IN' : 'en-IN'
+    );
+
+    if (recognition) {
+      setIsDictating(true);
+      setDictationStop(() => recognition.stop);
+    }
+  };
+
   const handleCheck = async () => {
     if (!inputText.trim() && !imagePreview) {
-      setError(
-        language === 'hi'
-          ? 'कृपया संदेश लिखें या कागज़ की फ़ोटो चुनें।'
-          : 'Please enter text or upload a document photo to check.'
-      );
+      setError(t('emptyInputWarning', lang));
       return;
     }
 
     setIsLoading(true);
     setError(null);
-    setAddedReminderMessage(false);
-    setAddedMedicineMessage(false);
 
     try {
       const response = await fetch('/api/check', {
@@ -119,87 +150,56 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
         body: JSON.stringify({
           text: inputText.trim() || undefined,
           image: imagePreview || undefined,
-          language: language === 'hi' ? 'hi' : 'en',
+          language: lang === 'hi' ? 'hi' : 'en',
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error?.message || 'Failed to complete safety check.');
+        throw new Error(errorData?.error?.message || (lang === 'hi' ? 'जांच पूरी नहीं हो सकी।' : 'Failed to complete safety check.'));
       }
 
       const data: UnifiedCheckResult = await response.json();
       setResult(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(
-        err?.message ||
-          (language === 'hi'
-            ? 'जांच पूरी नहीं हो सकी। कृपया दोबारा प्रयास करें।'
-            : 'Could not complete the check. Please try again.')
-      );
+      const msg = err instanceof Error ? err.message : (lang === 'hi' ? 'जांच पूरी नहीं हो सकी। कृपया दोबारा प्रयास करें।' : 'Could not complete the check. Please try again.');
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddReminderClick = () => {
-    if (result?.reminder) {
-      if (onAddReminder) {
-        onAddReminder(result.reminder);
-      } else {
-        // Direct local storage fallback
-        const existing: GeneralReminder[] = JSON.parse(
-          localStorage.getItem('saarthi_reminders') || '[]'
-        );
-        const newRem: GeneralReminder = {
-          id: `rem-${Date.now()}`,
-          title: result.reminder.title,
-          dueDate: result.reminder.dueDate,
-          note: result.reminder.note,
-          isCompleted: false,
-          createdAt: new Date().toISOString(),
-        };
-        localStorage.setItem('saarthi_reminders', JSON.stringify([newRem, ...existing]));
-      }
-      setAddedReminderMessage(true);
-    }
-  };
-
-  const handleAddMedicineClick = () => {
-    if (result?.medicine) {
-      if (onAddMedicine) {
-        onAddMedicine(result.medicine);
-      } else {
-        const existing: MedicineItem[] = JSON.parse(
-          localStorage.getItem('saarthi_medicines') || '[]'
-        );
-        const newMed: MedicineItem = {
-          id: `med-${Date.now()}`,
-          name: result.medicine.name,
-          dosage: 'As prescribed',
-          timing: 'morning',
-          timeLabel: 'Morning (8:00 AM)',
-          withFood: 'after_food',
-          purpose: result.title || 'Doctor prescribed medication',
-          takenToday: false,
-          colorBadge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-          pillIconType: 'tablet',
-          remainingPills: 30,
-          doctorNotes: result.medicine.timing,
-        };
-        localStorage.setItem('saarthi_medicines', JSON.stringify([...existing, newMed]));
-      }
-      setAddedMedicineMessage(true);
-    }
-  };
-
+  // Language-aware speech readout (Requirement 6)
   const getSpokenReadout = (r: UnifiedCheckResult) => {
+    if (lang === 'hi') {
+      let text = `${r.title}। `;
+      if (r.risk === 'scam') {
+        text += `खतरे की चेतावनी! यह संदिग्ध धोखाधड़ी है। ${r.riskReason}। `;
+      } else if (r.risk === 'careful') {
+        text += `सावधानी से पढ़ें। ${r.riskReason}। `;
+      } else {
+        text += `यह संदेश सुरक्षित प्रतीत होता है। ${r.riskReason}। `;
+      }
+      text += `सार: ${r.summary}। `;
+      if (r.steps && r.steps.length > 0) {
+        text += `आगे के जरूरी कदम: ${r.steps.join('। ')}। `;
+      }
+      if (r.amountDue) {
+        text += `देय राशि: ${r.amountDue}। `;
+      }
+      if (r.dueDate) {
+        text += `अंतिम तारीख: ${r.dueDate}। `;
+      }
+      return text;
+    }
+
+    // English readout
     let text = `${r.title}. `;
     if (r.risk === 'scam') {
       text += `Scam warning! ${r.riskReason}. `;
     } else if (r.risk === 'careful') {
-      text += `Please be careful. ${r.riskReason}. `;
+      text += `Please read carefully. ${r.riskReason}. `;
     } else {
       text += `Appears safe. ${r.riskReason}. `;
     }
@@ -208,7 +208,7 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
       text += `Recommended steps: ${r.steps.join('. ')}. `;
     }
     if (r.amountDue) {
-      text += `Amount mentioned: ${r.amountDue}. `;
+      text += `Amount due: ${r.amountDue}. `;
     }
     if (r.dueDate) {
       text += `Due date: ${r.dueDate}. `;
@@ -217,90 +217,131 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
   };
 
   return (
-    <div id="unified-checker-section" className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-stone-100 border-2 border-amber-200 rounded-3xl p-6 shadow-sm">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-900 font-bold text-xs uppercase tracking-wide">
-            <ShieldCheck className="w-4 h-4 text-amber-700" />
-            <span>सुरक्षा और जांच • Message & Document Clarifier</span>
-          </div>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-stone-900 font-heading">
-            {language === 'hi'
-              ? 'क्या यह संदेश या बिल सुरक्षित है? जांचें'
-              : 'Is This Message or Document Safe? Check with Saarthi'}
-          </h2>
-          <p className="text-stone-600 text-base max-w-3xl leading-relaxed">
-            {language === 'hi'
-              ? 'बिजली कटने की धमकी, बैंक केवाईसी लिंक, अनजान नंबर का फोन, या कोई सरकारी पत्र—सारथी सरल भाषा में समझाएगा।'
-              : 'Whether an urgent SMS, power cut threat, bank KYC warning, doctor prescription, or utility bill—Saarthi checks it in seconds.'}
-          </p>
+    <div id="unified-checker-section" className="space-y-6 max-w-4xl mx-auto">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center space-x-3 text-base font-semibold animate-in fade-in slide-in-from-bottom-4"
+        >
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <span>{toastMessage}</span>
         </div>
+      )}
 
-        {/* Quick Sample Chips */}
-        <div className="mt-5 pt-4 border-t border-amber-200">
-          <span className="text-xs font-bold text-stone-700 uppercase tracking-wider block mb-2">
-            Try a common example (Click to test):
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {SAMPLE_CHECKS.map((sample) => (
-              <button
-                key={sample.id}
-                type="button"
-                onClick={() => handleLoadSample(sample.text)}
-                className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 border border-amber-300 text-xs font-semibold text-stone-800 shadow-xs transition-transform active:scale-95"
-              >
-                {sample.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Screen Title & Description */}
+      <div className="bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-6 sm:p-8 space-y-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100 font-heading">
+          {t('checkScreenTitle', lang)}
+        </h1>
+        <p className="text-stone-700 dark:text-stone-300 text-base leading-relaxed">
+          {t('checkScreenSubtitle', lang)}
+        </p>
       </div>
 
-      {/* Main Input Form */}
-      <div className="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm space-y-4">
-        <div className="space-y-2">
-          <label htmlFor="check-text-input" className="block text-base font-bold text-stone-900">
-            {language === 'hi'
-              ? 'संदेश या पत्र का पाठ यहाँ लिखें:'
-              : 'Paste SMS, WhatsApp text, or describe the message:'}
-          </label>
-          <textarea
-            id="check-text-input"
-            rows={4}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder={
-              language === 'hi'
-                ? 'जैसे: "आपका बिजली बिल बाकी है, आज रात कट जाएगा..." या बिल की कोई भी बात'
-                : 'e.g., "Electricity will be disconnected tonight...", "Your SBI KYC is pending...", or type bill details'
-            }
-            className="w-full p-4 rounded-2xl border border-stone-300 text-stone-800 text-base focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none transition-all placeholder:text-stone-400"
-          />
-        </div>
-
-        {/* Photo Upload Option with Canvas Auto-Compression */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-stone-100">
-          <div className="flex items-center gap-3">
-            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold text-sm cursor-pointer border border-stone-300 transition-colors">
-              <Camera className="w-4 h-4 text-amber-700" />
-              <span>{imagePreview ? 'Change Photo' : 'Upload / Take Photo'}</span>
+      {/* Main Input Card */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
+        {/* Photo Upload & Preview */}
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="min-h-[48px] inline-flex items-center space-x-2 px-5 py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-950 dark:text-amber-200 font-semibold text-base border border-amber-300 dark:border-amber-800 cursor-pointer transition-colors shadow-xs">
+              <Camera className="w-5 h-5 text-amber-800 dark:text-amber-300 shrink-0" />
+              <span>{imagePreview ? t('changePhoto', lang) : t('uploadPhoto', lang)}</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="sr-only"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) handleImageFile(file);
+                  if (file) handleImageSelect(file);
                 }}
               />
             </label>
+
+            {imagePreview && (
+              <button
+                type="button"
+                onClick={() => setImagePreview(null)}
+                className="min-h-[48px] px-4 py-2.5 rounded-2xl border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-medium text-sm flex items-center space-x-1.5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+                <span>{t('removePhoto', lang)}</span>
+              </button>
+            )}
+
             {isCompressing && (
-              <span className="text-xs text-amber-700 flex items-center gap-1 font-medium animate-pulse">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Optimizing photo...
+              <span className="text-sm text-amber-800 dark:text-amber-300 flex items-center space-x-1.5 font-medium animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>{t('optimizingPhoto', lang)}</span>
               </span>
             )}
+          </div>
+
+          {imagePreview && (
+            <div className="mt-4 relative inline-block rounded-2xl border border-stone-300 dark:border-stone-700 overflow-hidden shadow-xs bg-stone-100 dark:bg-stone-800">
+              <img
+                src={imagePreview}
+                alt="Uploaded document preview"
+                className="max-h-56 object-contain"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Text Area Input with Voice Microphone Option */}
+        <div className="space-y-2 pt-2 border-t border-stone-200 dark:border-stone-800">
+          <div className="flex items-center justify-between">
+            <label htmlFor="check-text-input" className="block text-base font-semibold text-stone-900 dark:text-stone-100">
+              {t('pasteOrType', lang)}
+            </label>
+
+            {/* Microphone dictation button */}
+            <button
+              type="button"
+              onClick={handleToggleDictation}
+              className={`min-h-[48px] min-w-[48px] px-3.5 py-2 rounded-xl text-sm font-semibold flex items-center space-x-1.5 transition-colors ${
+                isDictating
+                  ? 'bg-rose-600 text-white animate-pulse'
+                  : 'bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700'
+              }`}
+              title={isDictating ? t('stopAudio', lang) : t('speak', lang)}
+              aria-label={isDictating ? t('stopAudio', lang) : t('speak', lang)}
+            >
+              {isDictating ? (
+                <>
+                  <MicOff className="w-4 h-4 shrink-0" />
+                  <span>{t('listening', lang)}</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+                  <span>{t('speak', lang)}</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {dictationError && (
+            <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+              {dictationError}
+            </p>
+          )}
+
+          <textarea
+            id="check-text-input"
+            rows={4}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder={t('pastePlaceholder', lang)}
+            className="w-full p-4 rounded-2xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-base focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none placeholder:text-stone-400 dark:placeholder:text-stone-500"
+          />
+        </div>
+
+        {/* Action Button */}
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs text-stone-500 dark:text-stone-400">
+            {inputText.length > 0 ? `${inputText.length} characters` : ''}
           </div>
 
           <button
@@ -308,68 +349,48 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
             type="button"
             disabled={isLoading || isCompressing || (!inputText.trim() && !imagePreview)}
             onClick={handleCheck}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-600 hover:bg-amber-700 disabled:bg-stone-300 text-white font-bold rounded-2xl shadow-md transition-transform active:scale-95 text-base"
+            className="w-full sm:w-auto min-h-[48px] px-8 py-3 bg-amber-600 hover:bg-amber-700 disabled:bg-stone-300 dark:disabled:bg-stone-800 disabled:text-stone-500 text-white font-bold rounded-2xl shadow-sm transition-colors text-base flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Checking carefully...</span>
+                <span>{t('checkingButton', lang)}</span>
               </>
             ) : (
               <>
                 <ShieldCheck className="w-5 h-5" />
-                <span>{language === 'hi' ? 'जांच करें' : 'Check with Saarthi'}</span>
+                <span>{t('checkButton', lang)}</span>
               </>
             )}
           </button>
         </div>
 
-        {/* Image preview thumbnail if uploaded */}
-        {imagePreview && (
-          <div className="relative inline-block mt-2 rounded-2xl border-2 border-amber-300 overflow-hidden shadow-sm">
-            <img
-              src={imagePreview}
-              alt="Document uploaded for review"
-              className="max-h-48 object-contain bg-stone-100"
-            />
-            <button
-              type="button"
-              onClick={() => setImagePreview(null)}
-              className="absolute top-2 right-2 p-1.5 rounded-full bg-stone-900/80 text-white hover:bg-rose-600 transition-colors"
-              title="Remove photo"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Error banner */}
         {error && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm font-medium flex items-center gap-2">
+          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-sm font-medium flex items-center space-x-2">
             <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
             <span>{error}</span>
           </div>
         )}
       </div>
 
-      {/* Result Card with aria-live for screen readers */}
+      {/* Result Section */}
       <div aria-live="polite">
         {result && (
           <div
             id="check-result-card"
-            className={`border-2 rounded-3xl p-6 sm:p-8 space-y-6 shadow-md transition-all ${
+            className={`border-2 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm ${
               result.risk === 'scam'
-                ? 'bg-rose-50/70 border-rose-300'
+                ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800'
                 : result.risk === 'careful'
-                ? 'bg-amber-50/70 border-amber-300'
-                : 'bg-emerald-50/70 border-emerald-300'
+                ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800'
+                : 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800'
             }`}
           >
             {/* Top Risk Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-stone-200/80">
-              <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-stone-200 dark:border-stone-700">
+              <div className="flex items-center space-x-3.5">
                 <div
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
                     result.risk === 'scam'
                       ? 'bg-rose-600 text-white'
                       : result.risk === 'careful'
@@ -387,68 +408,65 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
                 </div>
 
                 <div>
-                  {/* Badge */}
-                  <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wide mb-1 border shadow-xs">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide mb-1 border">
                     {result.risk === 'scam' && (
-                      <span className="bg-rose-100 text-rose-900 border-rose-300">
-                        🚨 Scam Warning
+                      <span className="bg-rose-100 dark:bg-rose-900/60 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700 px-2 py-0.5 rounded-full">
+                        {t('riskScam', lang)}
                       </span>
                     )}
                     {result.risk === 'careful' && (
-                      <span className="bg-amber-100 text-amber-900 border-amber-300">
-                        ⚠️ Be Careful
+                      <span className="bg-amber-100 dark:bg-amber-900/60 text-amber-950 dark:text-amber-200 border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full">
+                        {t('riskCareful', lang)}
                       </span>
                     )}
                     {result.risk === 'safe' && (
-                      <span className="bg-emerald-100 text-emerald-900 border-emerald-300">
-                        ✅ Appears Safe
+                      <span className="bg-emerald-100 dark:bg-emerald-900/60 text-emerald-950 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 px-2 py-0.5 rounded-full">
+                        {t('riskSafe', lang)}
                       </span>
                     )}
                   </div>
-                  <h3 className="text-xl sm:text-2xl font-black text-stone-900 font-heading">
+                  <h2 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 font-heading">
                     {result.title}
-                  </h3>
+                  </h2>
                 </div>
               </div>
 
-              {/* Spoken Voice Button */}
+              {/* Spoken Voice Button with Language Awareness */}
               <div className="self-start sm:self-center">
                 <VoiceSpeakerButton
                   textToSpeak={getSpokenReadout(result)}
-                  label="Listen / सुनें"
+                  lang={lang === 'hi' ? 'hi-IN' : 'en-IN'}
+                  speechRate={settings.speechRate}
                   size="md"
                 />
               </div>
             </div>
 
-            {/* Honest Fallback Notice */}
+            {/* Honest Fallback Notice if triggered */}
             {result.source === 'fallback' && (
-              <div className="p-3.5 rounded-2xl bg-amber-100/80 border border-amber-300 text-amber-950 text-xs font-semibold flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-800 shrink-0" />
+              <div className="p-3.5 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-100 text-xs font-semibold flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-amber-800 dark:text-amber-300 shrink-0" />
                 <span>
-                  {language === 'hi'
+                  {lang === 'hi'
                     ? 'सारथी ने यह जांच सामान्य सुरक्षा नियमों के आधार पर की है। कृपया बैंक या परिवार से पुष्टि अवश्य करें।'
                     : 'I could not read this fully, so this is a general safety check only.'}
                 </span>
               </div>
             )}
 
-            {/* Plain Risk Reason */}
-            <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500 block mb-1">
-                Guidance & Reason:
+            {/* Guidance & Reason */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 block mb-1">
+                {t('guidanceReason', lang)}
               </span>
-              <p className="text-stone-800 text-base leading-relaxed font-medium">
+              <p className="text-stone-900 dark:text-stone-100 text-base leading-relaxed font-medium">
                 {result.riskReason}
               </p>
             </div>
 
             {/* Summary */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500 block">
-                What this means in plain words:
-              </span>
-              <p className="text-stone-800 text-base sm:text-lg leading-relaxed bg-white/70 p-4 rounded-2xl border border-stone-200/60">
+            <div className="p-4 rounded-2xl bg-white/80 dark:bg-stone-900/80 border border-stone-200 dark:border-stone-800 space-y-1">
+              <p className="text-stone-900 dark:text-stone-100 text-base sm:text-lg leading-relaxed">
                 {result.summary}
               </p>
             </div>
@@ -456,16 +474,16 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
             {/* Red Flags if any */}
             {result.redFlags && result.redFlags.length > 0 && (
               <div className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-rose-700 block">
-                  Warning Signs Found:
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 block">
+                  {t('redFlagsTitle', lang)}
                 </span>
                 <ul className="space-y-1.5">
                   {result.redFlags.map((flag, idx) => (
                     <li
                       key={idx}
-                      className="text-sm font-medium text-rose-900 bg-rose-100/80 border border-rose-200 p-2.5 rounded-xl flex items-start gap-2"
+                      className="text-sm font-medium text-rose-950 dark:text-rose-200 bg-rose-100/80 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 p-2.5 rounded-xl flex items-start space-x-2"
                     >
-                      <span className="font-bold text-rose-700">•</span>
+                      <span className="font-bold text-rose-700 dark:text-rose-400">•</span>
                       <span>{flag}</span>
                     </li>
                   ))}
@@ -477,17 +495,19 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
             {(result.amountDue || result.dueDate) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {result.amountDue && (
-                  <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-                    <span className="text-xs text-stone-500 font-semibold block">
-                      Amount Mentioned
+                  <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800">
+                    <span className="text-xs text-stone-500 dark:text-stone-400 font-semibold block">
+                      {t('amountDue', lang)}
                     </span>
-                    <span className="text-xl font-black text-stone-900">{result.amountDue}</span>
+                    <span className="text-xl font-bold text-stone-900 dark:text-stone-100">{result.amountDue}</span>
                   </div>
                 )}
                 {result.dueDate && (
-                  <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-                    <span className="text-xs text-stone-500 font-semibold block">Due Date</span>
-                    <span className="text-lg font-bold text-amber-900">{result.dueDate}</span>
+                  <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800">
+                    <span className="text-xs text-stone-500 dark:text-stone-400 font-semibold block">
+                      {t('dueDate', lang)}
+                    </span>
+                    <span className="text-lg font-bold text-amber-900 dark:text-amber-300">{result.dueDate}</span>
                   </div>
                 )}
               </div>
@@ -496,38 +516,38 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
             {/* Recommended Steps */}
             {result.steps && result.steps.length > 0 && (
               <div className="space-y-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-stone-600 block">
-                  What you should do right now:
+                <span className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400 block">
+                  {t('stepsToTake', lang)}
                 </span>
                 <div className="space-y-2">
                   {result.steps.map((step, idx) => (
                     <div
                       key={idx}
-                      className="p-3.5 rounded-2xl bg-white border border-stone-200 shadow-xs flex items-start gap-3"
+                      className="p-3.5 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 flex items-start space-x-3"
                     >
-                      <div className="w-6 h-6 rounded-full bg-stone-900 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
                         {idx + 1}
                       </div>
-                      <p className="text-sm sm:text-base font-medium text-stone-800">{step}</p>
+                      <p className="text-sm sm:text-base font-medium text-stone-800 dark:text-stone-200">{step}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Jargon Buster if any */}
+            {/* Jargon Buster */}
             {result.jargon && result.jargon.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-stone-200">
-                <span className="text-xs font-bold uppercase tracking-wider text-stone-600 block">
-                  Difficult Words Explained:
+              <div className="space-y-2 pt-2 border-t border-stone-200 dark:border-stone-700">
+                <span className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400 block">
+                  {t('jargonBusterTitle', lang)}
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {result.jargon.map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-white border border-stone-200 text-xs text-stone-700"
+                      className="p-3 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-xs text-stone-700 dark:text-stone-300"
                     >
-                      <strong className="text-stone-900 block font-bold mb-0.5">
+                      <strong className="text-stone-900 dark:text-stone-100 block font-bold mb-0.5">
                         {item.term}:
                       </strong>
                       <span>{item.meaning}</span>
@@ -537,51 +557,113 @@ export const UnifiedChecker: React.FC<UnifiedCheckerProps> = ({
               </div>
             )}
 
-            {/* Action Buttons: Add to Reminders & Add to Medicines ONLY when present */}
-            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-stone-200">
-              {result.reminder && (
+            {/* Action Buttons (Requirement 3, 4, 5) */}
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-stone-200 dark:border-stone-700">
+              {/* If scam detected: Tell family & Get help buttons (Requirement 5) */}
+              {result.risk === 'scam' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTellFamilyModalOpen(true)}
+                    className="min-h-[48px] inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-xs transition-colors"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>{t('tellMyFamily', lang)}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSOSTargetNumber('1930');
+                      setIsSOSOpen(true);
+                    }}
+                    className="min-h-[48px] inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-rose-700 hover:bg-rose-800 text-white font-bold text-sm shadow-xs transition-colors"
+                  >
+                    <PhoneCall className="w-4 h-4" />
+                    <span>{t('getEmergencyHelp', lang)}</span>
+                  </button>
+                </>
+              )}
+
+              {/* Add to Reminders button */}
+              {(result.reminder || result.dueDate) && (
                 <button
                   id="add-to-reminders-btn"
                   type="button"
-                  onClick={handleAddReminderClick}
-                  disabled={addedReminderMessage}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-stone-900 hover:bg-stone-800 disabled:bg-stone-400 text-white font-bold text-sm shadow-xs transition-transform active:scale-95"
+                  onClick={() => setReminderModalOpen(true)}
+                  className="min-h-[48px] inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-stone-900 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-white text-white dark:text-stone-900 font-bold text-sm shadow-xs transition-colors"
                 >
-                  <Calendar className="w-4 h-4 text-amber-400" />
-                  <span>
-                    {addedReminderMessage ? '✓ Added to Reminders' : 'Add to My Reminders'}
-                  </span>
+                  <Calendar className="w-4 h-4 text-amber-400 dark:text-amber-600" />
+                  <span>{t('addToReminders', lang)}</span>
                 </button>
               )}
 
+              {/* Add to Medicines button */}
               {result.medicine && (
                 <button
                   id="add-to-medicines-btn"
                   type="button"
-                  onClick={handleAddMedicineClick}
-                  disabled={addedMedicineMessage}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-400 text-white font-bold text-sm shadow-xs transition-transform active:scale-95"
+                  onClick={() => setMedicineModalOpen(true)}
+                  className="min-h-[48px] inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-xs transition-colors"
                 >
                   <Pill className="w-4 h-4 text-emerald-200" />
-                  <span>
-                    {addedMedicineMessage ? '✓ Added to Medicines' : 'Add to My Medicines'}
-                  </span>
+                  <span>{t('addToMedicines', lang)}</span>
                 </button>
               )}
 
               {result.helpline && (
                 <a
                   href={`tel:${result.helpline}`}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-xs transition-transform active:scale-95"
+                  className="min-h-[48px] inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-stone-800 hover:bg-stone-900 text-white font-bold text-sm shadow-xs transition-colors"
                 >
                   <PhoneCall className="w-4 h-4" />
-                  <span>Call Helpline {result.helpline}</span>
+                  <span>Call {result.helpline}</span>
                 </a>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* Confirmation and Privacy Modals */}
+      <PrivacyNoticeModal
+        isOpen={showPrivacyModal}
+        onClose={handlePrivacyDismissed}
+      />
+
+      <ConfirmAddMedicineModal
+        isOpen={medicineModalOpen}
+        onClose={() => setMedicineModalOpen(false)}
+        initialData={{
+          name: result?.medicine?.name,
+          dosage: '1 Tablet',
+          timing: 'morning',
+          withFood: 'after_food',
+          purpose: result?.title,
+        }}
+        onSuccess={(name) => {
+          showToast(lang === 'hi' ? `"${name}" आपकी दवा सूची में जोड़ दी गई है।` : `"${name}" added to your medicines.`);
+        }}
+      />
+
+      <ConfirmAddReminderModal
+        isOpen={reminderModalOpen}
+        onClose={() => setReminderModalOpen(false)}
+        initialData={{
+          title: result?.reminder?.title || result?.title || 'Bill / Reminder',
+          dueDate: result?.reminder?.dueDate || result?.dueDate || undefined,
+          note: result?.reminder?.note || (result?.amountDue ? `Amount: ${result.amountDue}` : undefined),
+        }}
+        onSuccess={(title) => {
+          showToast(lang === 'hi' ? `"${title}" रिमाइंडर में जोड़ दिया गया है।` : `"${title}" saved to your reminders.`);
+        }}
+      />
+
+      <TellFamilyModal
+        isOpen={tellFamilyModalOpen}
+        onClose={() => setTellFamilyModalOpen(false)}
+        topic={result?.title || 'a suspicious message'}
+      />
     </div>
   );
 };

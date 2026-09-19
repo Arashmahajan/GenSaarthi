@@ -1,4 +1,4 @@
-export type Language = 'en' | 'hi' | 'hinglish' | 'bn' | 'mr' | 'ta' | 'te' | 'gu';
+export type Language = 'en' | 'hi';
 
 export type TextSize = 'normal' | 'large' | 'extra-large';
 
@@ -9,6 +9,7 @@ export interface AccessibilitySettings {
   speechRate: number; // 0.8 for slow elder-friendly speech, 1.0 normal
   language: Language;
   soundEnabled: boolean;
+  userName?: string;
 }
 
 export type RiskLevel = 'safe' | 'careful' | 'scam';
@@ -35,6 +36,7 @@ export interface GeneralReminder {
   title: string;
   dueDate: string | null; // e.g. "YYYY-MM-DD"
   dueTime?: string | null; // e.g. "09:30"
+  dueTimestamp?: string | null; // ISO timestamp
   recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
   note: string;
   isCompleted: boolean;
@@ -42,20 +44,21 @@ export interface GeneralReminder {
   completedAt?: string | null;
 }
 
+export type DoseSlot = 'morning' | 'afternoon' | 'evening' | 'night';
+
 export interface DoseRecord {
-  id: string;
-  medicineId: string;
-  date: string; // Local date string "YYYY-MM-DD"
-  timing: 'morning' | 'afternoon' | 'evening' | 'night';
-  takenAt: string; // Formatted time e.g. "08:15 AM"
-  timestamp: number; // Epoch timestamp ms
-  pillsDeducted: number; // Pills deducted from inventory on this record
+  takenAt: string; // e.g. "08:30 AM"
+  timestamp: number; // epoch ms
 }
+
+// doseLog[medicineId][YYYY-MM-DD][doseSlot] = { takenAt, timestamp }
+export type DoseLog = Record<string, Record<string, Partial<Record<DoseSlot, DoseRecord>>>>;
 
 export interface DayPlanSlot {
   time: string;
   activity: string;
-  tip: string;
+  tip?: string;
+  notes?: string;
 }
 
 export interface DayPlanResult {
@@ -66,50 +69,20 @@ export interface DayPlanResult {
   source: 'ai' | 'fallback';
 }
 
-export interface DocumentAnalysisResult {
-  title: string;
-  documentType: 'electricity_bill' | 'water_gas_bill' | 'bank_sms' | 'pension_letter' | 'prescription' | 'other';
-  simplifiedSummary: string;
-  amountDue?: string;
-  dueDate?: string;
-  keyDates?: string[];
-  actionRequired: string[];
-  isUrgent: boolean;
-  warnings?: string[];
-  jargonBuster: Array<{
-    term: string;
-    simpleMeaning: string;
-  }>;
-  safetyNote?: string;
-}
-
-export interface ScamCheckResult {
-  verdict: 'DANGER_SCAM' | 'SUSPICIOUS' | 'SAFE';
-  riskScore: number; // 0 - 100
-  scamType: string;
-  verdictTitle: string;
-  summaryExplanation: string;
-  redFlags: string[];
-  whatScammersWant: string[];
-  recommendedSteps: string[];
-  helplineToCall: string;
-  safeAlternatives: string[];
-}
+export type FoodTiming = 'before_food' | 'after_food' | 'with_food' | 'anytime' | 'not_specified';
 
 export interface MedicineItem {
   id: string;
   name: string;
   dosage: string;
-  timing: 'morning' | 'afternoon' | 'evening' | 'night';
+  timing: DoseSlot;
   timeLabel: string;
-  withFood: 'before_food' | 'after_food' | 'with_food' | 'anytime';
-  purpose: string; // e.g. "Controls Blood Pressure"
-  takenToday?: boolean; // kept for legacy backward compatibility
-  takenAt?: string;
+  withFood: FoodTiming;
+  purpose: string;
   colorBadge: string;
   pillIconType: 'tablet' | 'capsule' | 'syrup' | 'drops';
-  remainingPills: number;
-  initialPills?: number;
+  remainingPills?: number | null;
+  initialPills?: number | null;
   doctorNotes?: string;
   isSample?: boolean;
 }
@@ -127,6 +100,7 @@ export interface SeniorScheme {
   howToApply: string;
   officialPortalUrl?: string;
   helpline?: string;
+  checkedOn?: string;
 }
 
 export interface DigitalGuide {
@@ -153,6 +127,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   audioSpoken?: boolean;
+  source?: 'ai' | 'fallback';
 }
 
 export interface EmergencyContact {
@@ -161,4 +136,6 @@ export interface EmergencyContact {
   relation: string;
   phone: string;
   isPrimary: boolean;
+  isDemo?: boolean;
+  isSample?: boolean;
 }

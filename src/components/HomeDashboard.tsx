@@ -3,18 +3,22 @@ import { FileText, ShieldAlert, Pill, Landmark, Smartphone, MessageSquare, Phone
 import { AccessibilitySettings, Language } from '../types';
 import { DailySatsangCard } from './DailySatsangCard';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
+import { useApp } from '../context/AppContext';
 
 interface HomeDashboardProps {
   onSelectTab: (tab: string) => void;
   onOpenSOS: () => void;
-  language: Language;
+  language?: Language;
 }
 
 export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onSelectTab,
   onOpenSOS,
-  language,
 }) => {
+  const { settings } = useApp();
+  const lang = settings.language;
+  const userName = settings.userName;
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: 'सुप्रभात • Suprabhatam (Good Morning)', sub: 'May your morning be peaceful and energetic.' };
@@ -78,7 +82,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     { title: 'Submit Jeevan Pramaan from Home', id: 'guides' },
   ];
 
-  const spokenOverview = `Pranam Uncle ji, Aunty ji! Welcome to Saarthi. ${greeting.text}. On Saarthi, you can easily understand electricity bills and doctor prescriptions, check suspicious messages for scams, manage your daily medicines, and explore senior citizen government benefits. How may I help you right now?`;
+  const spokenOverview = `${userName ? `Pranam ${userName} ji!` : 'Pranam!'} Welcome to Saarthi. ${greeting.text}. On Saarthi, you can easily understand electricity bills and doctor prescriptions, check suspicious messages for scams, manage your daily medicines, and explore senior citizen government benefits. How may I help you right now?`;
 
   return (
     <div id="home-dashboard" className="space-y-6">
@@ -86,17 +90,17 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       <DailySatsangCard />
 
       {/* Warm Elder Welcome Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-stone-200 rounded-3xl p-6 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-6 shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-3 py-0.5 rounded-full">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-3 py-0.5 rounded-full">
               {greeting.text}
             </span>
           </div>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-stone-900 font-heading">
-            Pranam Uncle ji / Aunty ji, How Can Saarthi Help You Today?
+          <h2 className="text-2xl md:text-3xl font-extrabold text-stone-900 dark:text-stone-100 font-heading">
+            {userName ? `Namaste, ${userName} ji` : 'Namaste'}, How Can Saarthi Help You Today?
           </h2>
-          <p className="text-stone-600 text-base max-w-2xl">
+          <p className="text-stone-600 dark:text-stone-400 text-base max-w-2xl">
             {greeting.sub} Tap any of the 4 big cards below or speak with Saarthi in voice.
           </p>
         </div>

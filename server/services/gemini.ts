@@ -42,43 +42,55 @@ export async function callGeminiGenerate(
   }
 
   const timeoutMs = options.timeoutMs || LIMITS.GEMINI_TIMEOUT_MS;
+  const controller = new AbortController();
 
-  const generatePromise = ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents,
-    config: {
-      systemInstruction: options.systemInstruction,
-      responseMimeType: options.responseMimeType,
-      responseSchema: options.responseSchema,
-    },
-  });
+  let timer: NodeJS.Timeout | null = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
 
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    const timer = setTimeout(() => {
-      const err: any = new Error('AI request timed out');
-      err.code = 'TIMEOUT';
-      reject(err);
-    }, timeoutMs);
-    // Unref timer if node supports it
-    if (typeof timer.unref === 'function') {
-      timer.unref();
-    }
-  });
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
 
   try {
-    const response = await Promise.race([generatePromise, timeoutPromise]);
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents,
+      config: {
+        systemInstruction: options.systemInstruction,
+        responseMimeType: options.responseMimeType,
+        responseSchema: options.responseSchema,
+        abortSignal: controller.signal,
+      },
+    });
+
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+
     const text = response.text || '';
     return { text };
   } catch (err: any) {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (controller.signal.aborted || err?.name === 'AbortError') {
+      const timeoutErr: any = new Error('AI request timed out');
+      timeoutErr.code = 'TIMEOUT';
+      mapGeminiError(timeoutErr);
+      throw timeoutErr;
+    }
     mapGeminiError(err);
     throw err;
   }
 }
 
-export async function callGeminiStream(
+export async function* callGeminiStream(
   contents: any,
   options: GeminiCallOptions = {}
-): Promise<AsyncIterable<any>> {
+): AsyncGenerator<any, void, unknown> {
   const ai = getGeminiClient();
   if (!ai) {
     const err: any = new Error('Gemini API key is not configured');
@@ -86,18 +98,78 @@ export async function callGeminiStream(
     throw err;
   }
 
+  const timeoutMs = options.timeoutMs || LIMITS.GEMINI_TIMEOUT_MS;
+  const controller = new AbortController();
+
+  let chunkTimer: NodeJS.Timeout | null = null;
+  const resetChunkTimer = () => {
+    if (chunkTimer) clearTimeout(chunkTimer);
+    chunkTimer = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+    if (typeof chunkTimer.unref === 'function') {
+      chunkTimer.unref();
+    }
+  };
+
+  resetChunkTimer();
+
   try {
     const responseStream = await ai.models.generateContentStream({
       model: GEMINI_MODEL,
       contents,
       config: {
         systemInstruction: options.systemInstruction,
+        abortSignal: controller.signal,
       },
     });
-    return responseStream;
+
+    for await (const chunk of responseStream) {
+      resetChunkTimer();
+      yield chunk;
+    }
   } catch (err: any) {
+    if (controller.signal.aborted || err?.name === 'AbortError') {
+      const timeoutErr: any = new Error('AI streaming timed out');
+      timeoutErr.code = 'TIMEOUT';
+      mapGeminiError(timeoutErr);
+      throw timeoutErr;
+    }
     mapGeminiError(err);
     throw err;
+  } finally {
+    if (chunkTimer) {
+      clearTimeout(chunkTimer);
+    }
+  }
+}
+
+export async function verifyGeminiModelAtStartup(): Promise<boolean> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.log('[Gemini Service] GEMINI_API_KEY not set - running in honest fallback mode.');
+    return false;
+  }
+
+  try {
+    const ai = getGeminiClient();
+    if (!ai) return false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: 'Ping',
+      config: {
+        maxOutputTokens: 1,
+        abortSignal: controller.signal,
+      },
+    });
+    clearTimeout(timer);
+    console.log(`[Gemini Service] Model "${GEMINI_MODEL}" verified and ready.`);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Gemini Service] Model startup ping notice: ${err?.message || err}`);
+    return false;
   }
 }
 

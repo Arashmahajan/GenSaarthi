@@ -1,141 +1,185 @@
 import React, { useState, useEffect } from 'react';
-import { AccessibilitySettings, Language } from './types';
 import { Navbar } from './components/Navbar';
 import { HomeDashboard } from './components/HomeDashboard';
 import { UnifiedChecker } from './components/UnifiedChecker';
-import { RemindersManager } from './components/RemindersManager';
+import { RemindersAndMedicines } from './components/RemindersAndMedicines';
+import { CompanionChat } from './components/CompanionChat';
+import { EmergencyHelp } from './components/EmergencyHelp';
+import { EmergencySOSModal } from './components/EmergencySOSModal';
+import { MoreMenu } from './components/MoreMenu';
 import { PlanMyDay } from './components/PlanMyDay';
-import { MedicineReminder } from './components/MedicineReminder';
 import { SeniorSchemes } from './components/SeniorSchemes';
 import { DigitalGuides } from './components/DigitalGuides';
-import { CompanionChat } from './components/CompanionChat';
-import { EmergencySOSModal } from './components/EmergencySOSModal';
+import { SettingsModal } from './components/modals/SettingsModal';
+import { useApp } from './context/AppContext';
 import { SaarthiVoiceService } from './utils/speech';
+import { PhoneCall } from 'lucide-react';
+import { t } from './i18n';
+
+// Mapping between tab ids and url hashes
+const TAB_TO_HASH: Record<string, string> = {
+  home: '#home',
+  chat: '#ask',
+  check: '#check',
+  reminders_and_medicines: '#reminders',
+  help: '#help',
+  more: '#more',
+  plan: '#plan',
+  schemes: '#schemes',
+  guides: '#guides',
+};
+
+const HASH_TO_TAB: Record<string, string> = {
+  '#home': 'home',
+  '#ask': 'chat',
+  '#chat': 'chat',
+  '#check': 'check',
+  '#reminders': 'reminders_and_medicines',
+  '#medicine': 'reminders_and_medicines',
+  '#medicines': 'reminders_and_medicines',
+  '#help': 'help',
+  '#sos': 'help',
+  '#more': 'more',
+  '#plan': 'plan',
+  '#schemes': 'schemes',
+  '#guides': 'guides',
+};
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<string>('home');
-  const [isSOSOpen, setIsSOSOpen] = useState(false);
+  const { settings } = useApp();
+  const [isSOSOpen, setSOSOpen] = useState<boolean>(false);
+  const [isSettingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const lang = settings.language;
 
-  const [settings, setSettings] = useState<AccessibilitySettings>(() => {
-    try {
-      const saved = localStorage.getItem('saarthi_accessibility_settings');
-      if (saved) {
-        return JSON.parse(saved);
+  // Initialize active tab from window.location.hash or default to 'home'
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#settings') {
+        return 'home';
       }
-    } catch (e) {
-      console.warn('Failed to parse saved settings');
+      return HASH_TO_TAB[hash] || 'home';
     }
-    return {
-      textSize: 'normal',
-      highContrast: false,
-      darkMode: false,
-      speechRate: 0.85, // Gentle elder speech pace
-      language: 'en',
-      soundEnabled: true,
-    };
+    return 'home';
   });
 
+  // Handle URL hash changes (back/forward, refreshing, deep links)
   useEffect(() => {
-    try {
-      localStorage.setItem('saarthi_accessibility_settings', JSON.stringify(settings));
-    } catch (e) {
-      // ignore
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#settings') {
+        setSettingsOpen(true);
+      } else if (hash === '#sos') {
+        setSOSOpen(true);
+      } else if (HASH_TO_TAB[hash]) {
+        setActiveTab(HASH_TO_TAB[hash]);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [setSettingsOpen, setSOSOpen]);
+
+  // Sync document level classes and speech rate
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = settings.language;
+      document.documentElement.setAttribute('data-text-size', settings.textSize);
+
+      if (settings.darkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+
+      if (settings.highContrast) {
+        document.documentElement.classList.add('high-contrast');
+      } else {
+        document.documentElement.classList.remove('high-contrast');
+      }
     }
 
     if (settings.speechRate) {
       SaarthiVoiceService.defaultRate = settings.speechRate;
     }
-
-    if (settings.darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-
-    if (settings.highContrast) {
-      document.documentElement.classList.add('high-contrast');
-    } else {
-      document.documentElement.classList.remove('high-contrast');
-    }
   }, [settings]);
 
-  const handleUpdateSettings = (newSettings: Partial<AccessibilitySettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+  const handleSelectTab = (tabId: string) => {
+    setActiveTab(tabId);
+    const targetHash = TAB_TO_HASH[tabId];
+    if (targetHash && window.location.hash !== targetHash) {
+      window.history.pushState(null, '', targetHash);
+    }
+    // Scroll to top of main content
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  // Font size class mapping for elders (19px base scale)
-  const textSizeClass =
-    settings.textSize === 'extra-large'
-      ? 'text-xl [&_h1]:text-4xl [&_h2]:text-3xl [&_h3]:text-2xl [&_p]:text-xl [&_button]:text-lg'
-      : settings.textSize === 'large'
-      ? 'text-lg [&_h1]:text-3xl [&_h2]:text-2xl [&_h3]:text-xl [&_p]:text-lg [&_button]:text-base'
-      : 'text-base';
 
   return (
     <div
-      className={`min-h-screen transition-colors ${settings.darkMode ? 'dark' : ''} ${
+      id="saarthi-app-container"
+      className={`min-h-screen transition-colors ${
         settings.highContrast
           ? 'high-contrast bg-black text-yellow-300'
           : settings.darkMode
           ? 'bg-stone-950 text-stone-100'
           : 'bg-stone-50 text-stone-800'
-      } ${textSizeClass}`}
+      }`}
     >
-      {/* Navigation Header with Accessibility Controls */}
+      {/* 5-Item Navigation Bar */}
       <Navbar
-        settings={settings}
-        onUpdateSettings={handleUpdateSettings}
-        onOpenSOS={() => setIsSOSOpen(true)}
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
+        onOpenSOS={() => setSOSOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      {/* Main Content Viewport with Accessible Skip-to-Content Anchor */}
-      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-8 focus:outline-none">
+      {/* Main Content Area */}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-8 focus:outline-none"
+      >
         {activeTab === 'home' && (
           <HomeDashboard
-            onSelectTab={setActiveTab}
-            onOpenSOS={() => setIsSOSOpen(true)}
-            language={settings.language}
+            onSelectTab={handleSelectTab}
+            onOpenSOS={() => setSOSOpen(true)}
           />
         )}
 
-        {(activeTab === 'check' || activeTab === 'simplify' || activeTab === 'scam') && (
-          <UnifiedChecker language={settings.language} />
+        {activeTab === 'chat' && <CompanionChat />}
+
+        {activeTab === 'check' && <UnifiedChecker />}
+
+        {activeTab === 'reminders_and_medicines' && <RemindersAndMedicines />}
+
+        {activeTab === 'help' && (
+          <EmergencyHelp
+            onClose={() => handleSelectTab('home')}
+            isModal={false}
+          />
         )}
 
-        {activeTab === 'chat' && (
-          <CompanionChat language={settings.language} />
+        {activeTab === 'more' && (
+          <MoreMenu
+            onNavigate={handleSelectTab}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
         )}
 
-        {activeTab === 'reminders' && (
-          <RemindersManager language={settings.language} />
-        )}
+        {activeTab === 'plan' && <PlanMyDay />}
 
-        {activeTab === 'medicine' && (
-          <MedicineReminder language={settings.language} />
-        )}
+        {activeTab === 'schemes' && <SeniorSchemes />}
 
-        {activeTab === 'plan' && (
-          <PlanMyDay language={settings.language} />
-        )}
-
-        {activeTab === 'schemes' && (
-          <SeniorSchemes language={settings.language} />
-        )}
-
-        {activeTab === 'guides' && (
-          <DigitalGuides language={settings.language} />
-        )}
+        {activeTab === 'guides' && <DigitalGuides />}
       </main>
 
-      {/* Floating Emergency SOS trigger on mobile */}
+      {/* Floating Emergency SOS trigger on mobile viewports */}
       <div className="fixed bottom-6 right-6 z-30 sm:hidden">
         <button
           id="floating-sos-btn"
           type="button"
-          onClick={() => setIsSOSOpen(true)}
-          className="p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-2xl flex items-center justify-center font-bold animate-pulse active:scale-95"
+          onClick={() => setSOSOpen(true)}
+          className="min-h-[56px] min-w-[56px] p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-2xl flex items-center justify-center font-bold active:scale-95 transition-transform"
           title="Emergency SOS"
           aria-label="Open emergency numbers and contacts"
         >
@@ -143,11 +187,15 @@ export default function App() {
         </button>
       </div>
 
-      {/* Emergency Modal */}
-      <EmergencySOSModal isOpen={isSOSOpen} onClose={() => setIsSOSOpen(false)} />
+      {/* Modals */}
+      <EmergencySOSModal isOpen={isSOSOpen} onClose={() => setSOSOpen(false)} />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       {/* Respectful Senior-Centric Footer */}
-      <footer className="mt-12 border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 py-8 text-stone-600 dark:text-stone-300 text-sm">
+      <footer className="mt-14 border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 py-8 text-stone-600 dark:text-stone-300 text-sm">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-3 text-center md:text-left">
             <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-serif font-bold text-lg shadow-xs">
@@ -158,7 +206,9 @@ export default function App() {
                 Saarthi (सारथी) • Daily Companion for Senior Citizens
               </span>
               <p className="text-xs text-stone-500 dark:text-stone-400">
-                Dedicated with devotion and respect to the elders of India.
+                {lang === 'hi'
+                  ? 'भारत के वरिष्ठ नागरिकों के लिए समर्पित और आदरपूर्वक निर्मित।'
+                  : 'Dedicated with devotion and respect to the elders of India.'}
               </p>
             </div>
           </div>

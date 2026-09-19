@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb" />
+      <stop offset="50%" stop-color="#fef3c7" />
+      <stop offset="100%" stop-color="#f5f5f4" />
+    </linearGradient>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#78350f" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)" />
+
+  <!-- Decorative geometric elements -->
+  <circle cx="1080" cy="120" r="180" fill="#fde68a" opacity="0.35" />
+  <circle cx="120" cy="520" r="140" fill="#fcd34d" opacity="0.25" />
+
+  <!-- Central Card -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="80" width="1000" height="470" rx="32" fill="#ffffff" stroke="#fef08a" stroke-width="2" />
+  </g>
+
+  <!-- Logo Emblem -->
+  <g transform="translate(160, 160)">
+    <rect width="100" height="100" rx="24" fill="url(#amberGrad)" />
+    <text x="50" y="65" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">सा</text>
+  </g>
+
+  <!-- Title & Subtitles -->
+  <text x="290" y="215" font-family="system-ui, -apple-system, sans-serif" font-size="56" font-weight="800" fill="#1c1917" letter-spacing="-0.5">Saarthi • सारथी</text>
+  <text x="290" y="255" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="600" fill="#b45309">GenAI Companion & Guide for Senior Citizens in India</text>
+
+  <!-- Divider -->
+  <line x1="160" y1="305" x2="1040" y2="305" stroke="#e7e5e4" stroke-width="2" stroke-dasharray="8 8" />
+
+  <!-- Core Pillars -->
+  <!-- Pillar 1: Document Safety & Scam Check -->
+  <g transform="translate(160, 345)">
+    <rect width="260" height="140" rx="20" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5" />
+    <text x="24" y="44" font-size="28">🛡️</text>
+    <text x="24" y="82" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#78350f">Scam & Bill Checker</text>
+    <text x="24" y="108" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#a16207">Detect fraud & clarify bills</text>
+  </g>
+
+  <!-- Pillar 2: Voice & Companion Chat -->
+  <g transform="translate(470, 345)">
+    <rect width="260" height="140" rx="20" fill="#fdf2f8" stroke="#fbcfe8" stroke-width="1.5" />
+    <text x="24" y="44" font-size="28">🎙️</text>
+    <text x="24" y="82" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#831843">Companion Voice</text>
+    <text x="24" y="108" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#9d174d">Hindi & English elder speech</text>
+  </g>
+
+  <!-- Pillar 3: Medicine & Helplines -->
+  <g transform="translate(780, 345)">
+    <rect width="260" height="140" rx="20" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5" />
+    <text x="24" y="44" font-size="28">💊</text>
+    <text x="24" y="82" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#065f46">Medicine & Care</text>
+    <text x="24" y="108" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#047857">Doses, SOS 1930 / 112 / 14567</text>
+  </g>
+</svg>

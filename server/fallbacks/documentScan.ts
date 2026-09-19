@@ -9,28 +9,90 @@ import {
 import { scanTextForScamSignals } from './scamScan';
 
 export function extractLiteralRupeeAmount(text: string): string | null {
-  const match = text.match(/(?:₹|Rs\.?|INR)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/i);
-  if (match && match[1]) {
-    return `₹ ${match[1]}`;
+  if (!text || typeof text !== 'string') return null;
+
+  const nilRegex =
+    /(?:total\s+due|amount\s+due|net\s+amount|bill\s+amount|payable|total|देय\s+राशि|कुल\s+राशि)\s*[:\-]?\s*(?:nil|zero|no\s+dues|शून्य|कोई\s+बकाया\s+नहीं)/i;
+  if (nilRegex.test(text)) {
+    return 'Rs 0';
   }
+
+  const lines = text.split(/\r?\n/);
+  const targetLabel =
+    /(?:total\s+due|amount\s+due|net\s+amount|bill\s+amount|payable|total|कुल\s+देय|देय\s+राशि|कुल\s+राशि)/i;
+
+  // 1. Line-by-line matching where target label exists
+  for (const line of lines) {
+    if (targetLabel.test(line)) {
+      if (/(?:nil|zero|no\s+dues|शून्य)/i.test(line)) {
+        return 'Rs 0';
+      }
+      const match = line.match(
+        /(?:₹|Rs\.?|INR)\s*[0-9]{1,3}(?:(?:,[0-9]{2,3})+|[0-9]*)(?:\.[0-9]{1,2})?|[0-9]{1,3}(?:(?:,[0-9]{2,3})+|[0-9]*)(?:\.[0-9]{1,2})?\s*(?:₹|Rs\.?|INR)/i
+      );
+      if (match) {
+        const raw = match[0].trim();
+        const numOnly = raw.replace(/[^0-9]/g, '');
+        // Reject 10-digit mobile numbers or timestamps
+        if (numOnly.length === 10 && /^[6-9]/.test(numOnly)) continue;
+        return raw;
+      }
+    }
+  }
+
+  // 2. Search anywhere in text near the label (within 35 chars)
+  const labeledMatch = text.match(
+    /(?:total\s+due|amount\s+due|net\s+amount|bill\s+amount|payable|total|कुल\s+देय|देय\s+राशि|कुल\s+राशि)\s*[:\-]?\s*((?:₹|Rs\.?|INR)\s*[0-9]{1,3}(?:(?:,[0-9]{2,3})+|[0-9]*)(?:\.[0-9]{1,2})?|[0-9]{1,3}(?:(?:,[0-9]{2,3})+|[0-9]*)(?:\.[0-9]{1,2})?\s*(?:₹|Rs\.?|INR))/i
+  );
+  if (labeledMatch && labeledMatch[1]) {
+    const raw = labeledMatch[1].trim();
+    const numOnly = raw.replace(/[^0-9]/g, '');
+    if (!(numOnly.length === 10 && /^[6-9]/.test(numOnly))) {
+      return raw;
+    }
+  }
+
   return null;
 }
 
 export function extractLiteralDueDate(text: string): string | null {
-  // Pattern matching: e.g. "Due Date: 25 Oct 2024" or "due: 25/10/2024" or "25-10-2024"
-  const duePrefixMatch = text.match(
-    /(?:due(?:\s+date)?|last\s+date|pay\s+before|valid\s+till|expiry)\s*[:\-]?\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}(?:\s+[0-9]{4})?|[0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{2,4})/i
-  );
-  if (duePrefixMatch && duePrefixMatch[1]) {
-    return duePrefixMatch[1].trim();
+  if (!text || typeof text !== 'string') return null;
+
+  // Reject explicit "no due date"
+  if (/\bno\s+due\s+date\b/i.test(text)) {
+    return null;
   }
 
-  // General date pattern if accompanied by keywords
-  const generalDateMatch = text.match(
-    /\b([0-9]{1,2}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:\s+[0-9]{4})?)\b/i
+  const datePatternStr =
+    '(?:[0-9०-९]{1,2}(?:st|nd|rd|th)?[-./\\s]+(?:[0-9०-९]{1,2}|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|जनवरी|फ़रवरी|फरवरी|मार्च|अप्रैल|मई|जून|जुलाई|अगस्त|सितंबर|अक्टूबर|नवंबर|दिसंबर)[-./\\s]+[0-9०-९]{2,4}|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[-./\\s]+[0-9०-९]{1,2}(?:st|nd|rd|th)?(?:,)?[-./\\s]+[0-9०-९]{2,4}|[0-9०-९]{4}[-./][0-9०-९]{1,2}[-./][0-9०-९]{1,2})';
+
+  const lines = text.split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const matchDue = trimmed.match(
+      new RegExp(
+        '(?:due(?:\\s+date)?|pay\\s+(?:by|before)|\\bbefore\\b|last\\s+date|देय\\s+तिथि|अंतिम\\s+तिथि|भुगतान\\s+तिथि)\\s*[:\\-]?\\s*(' +
+          datePatternStr +
+          ')',
+        'i'
+      )
+    );
+    if (matchDue && matchDue[1]) {
+      return matchDue[1].trim();
+    }
+  }
+
+  const textMatch = text.match(
+    new RegExp(
+      '(?:due(?:\\s+date)?|pay\\s+(?:by|before)|\\bbefore\\b|last\\s+date|देय\\s+तिथि|अंतिम\\s+तिथि|भुगतान\\s+तिथि)\\s*[:\\-]?\\s*(' +
+        datePatternStr +
+        ')',
+      'i'
+    )
   );
-  if (generalDateMatch && generalDateMatch[1] && (text.toLowerCase().includes('due') || text.toLowerCase().includes('pay') || text.toLowerCase().includes('bill'))) {
-    return generalDateMatch[1].trim();
+  if (textMatch && textMatch[1]) {
+    return textMatch[1].trim();
   }
 
   return null;
@@ -76,6 +138,44 @@ export function generateHonestFallbackCheck(
   language: Language = 'en'
 ): UnifiedCheckResponse {
   const text = rawText.trim();
+
+  // If the fallback ran with NO text (image-only request), never return "safe"
+  if (!text) {
+    return {
+      kind: 'other',
+      title: language === 'hi' ? 'फोटो पढ़ी नहीं जा सकी' : 'I could not read this photo',
+      summary:
+        language === 'hi'
+          ? 'यह फोटो ऑफ़लाइन पढ़ी नहीं जा सकी। कृपया संदेश का पाठ (text) लिखकर या कॉपी करके यहां जांचें।'
+          : 'The photo could not be read offline. Please type or paste the message text here to check it safely.',
+      steps: [
+        language === 'hi'
+          ? 'जांच करने के लिए संदेश का टेक्स्ट यहां टाइप या पेस्ट करें'
+          : 'Type or paste the message text here to check it',
+        language === 'hi'
+          ? 'जांच होने तक इसमें दिए गए किसी भी लिंक या नंबर पर न जाएं'
+          : 'Do not click links or call numbers in it until checked',
+      ],
+      risk: 'careful',
+      riskReason:
+        language === 'hi'
+          ? 'फोटो का पाठ ऑफ़लाइन नहीं पढ़ा जा सका। बिना जांचे किसी लिंक या नंबर पर भरोसा न करें।'
+          : 'I could not read this photo offline. Please verify via text before taking action.',
+      redFlags: [
+        language === 'hi'
+          ? 'फोटो का विवरण ऑफ़लाइन उपलब्ध नहीं है।'
+          : 'Photo text could not be extracted offline.',
+      ],
+      amountDue: null,
+      dueDate: null,
+      jargon: [],
+      reminder: null,
+      medicine: null,
+      helpline: null,
+      source: 'fallback',
+    };
+  }
+
   const scamScan = scanTextForScamSignals(text, language);
   const kind = detectDocumentKind(text);
   const amountDue = extractLiteralRupeeAmount(text);

@@ -1,3 +1,4 @@
+import { Type } from '@google/genai';
 import { Language } from '../types';
 
 export function getUnifiedCheckPrompt(text?: string, language: Language = 'en'): string {
@@ -43,62 +44,60 @@ ${text || 'Please inspect the attached image document.'}
 }
 
 export const CHECK_RESPONSE_SCHEMA = {
-  type: 'object',
+  type: Type.OBJECT,
   properties: {
     kind: {
-      type: 'string',
+      type: Type.STRING,
       enum: ['bill', 'bank', 'government', 'medical', 'delivery', 'family', 'other'],
     },
-    title: { type: 'string' },
-    summary: { type: 'string' },
+    title: { type: Type.STRING },
+    summary: { type: Type.STRING },
     steps: {
-      type: 'array',
-      items: { type: 'string' },
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
     },
     risk: {
-      type: 'string',
+      type: Type.STRING,
       enum: ['safe', 'careful', 'scam'],
     },
-    riskReason: { type: 'string' },
+    riskReason: { type: Type.STRING },
     redFlags: {
-      type: 'array',
-      items: { type: 'string' },
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
     },
-    amountDue: { type: ['string', 'null'] },
-    dueDate: { type: ['string', 'null'] },
+    amountDue: { type: Type.STRING, nullable: true },
+    dueDate: { type: Type.STRING, nullable: true },
     jargon: {
-      type: 'array',
+      type: Type.ARRAY,
       items: {
-        type: 'object',
+        type: Type.OBJECT,
         properties: {
-          term: { type: 'string' },
-          meaning: { type: 'string' },
+          term: { type: Type.STRING },
+          meaning: { type: Type.STRING },
         },
         required: ['term', 'meaning'],
       },
     },
     reminder: {
-      type: ['object', 'null'],
+      type: Type.OBJECT,
+      nullable: true,
       properties: {
-        title: { type: 'string' },
-        dueDate: { type: ['string', 'null'] },
-        note: { type: 'string' },
+        title: { type: Type.STRING },
+        dueDate: { type: Type.STRING, nullable: true },
+        note: { type: Type.STRING },
       },
       required: ['title', 'note'],
     },
     medicine: {
-      type: ['object', 'null'],
+      type: Type.OBJECT,
+      nullable: true,
       properties: {
-        name: { type: 'string' },
-        timing: { type: 'string' },
+        name: { type: Type.STRING },
+        timing: { type: Type.STRING },
       },
       required: ['name', 'timing'],
     },
-    helpline: { type: ['string', 'null'] },
-    source: {
-      type: 'string',
-      enum: ['ai', 'fallback'],
-    },
+    helpline: { type: Type.STRING, nullable: true },
   },
   required: [
     'kind',
@@ -108,12 +107,6 @@ export const CHECK_RESPONSE_SCHEMA = {
     'risk',
     'riskReason',
     'redFlags',
-    'amountDue',
-    'dueDate',
     'jargon',
-    'reminder',
-    'medicine',
-    'helpline',
-    'source',
   ],
 };

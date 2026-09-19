@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { validateMedicineRequest } from '../validation/requestValidators';
+import { validateMedicineResponse } from '../validation/responseValidators';
 import { getSeniorSystemInstruction } from '../prompts/system';
-import { getMedicinePrompt } from '../prompts/medicine';
+import { getMedicinePrompt, MEDICINE_RESPONSE_SCHEMA } from '../prompts/medicine';
 import { callGeminiGenerate } from '../services/gemini';
 import { generateHonestFallbackMedicineReply } from '../fallbacks/medicineReply';
 import { MedicineExplainerResponse } from '../types';
@@ -30,6 +31,7 @@ medicineRouter.post(['/explain-medicine', '/medicine'], async (req: Request, res
         {
           systemInstruction,
           responseMimeType: 'application/json',
+          responseSchema: MEDICINE_RESPONSE_SCHEMA,
         }
       );
 
@@ -40,36 +42,17 @@ medicineRouter.post(['/explain-medicine', '/medicine'], async (req: Request, res
         .trim();
 
       const parsed = JSON.parse(cleaned);
-      parsed.source = 'ai';
+      const validated = validateMedicineResponse(parsed);
 
-      const sanitized: MedicineExplainerResponse = {
-        simpleName: typeof parsed.simpleName === 'string' ? parsed.simpleName : medicineName,
-        whatItDoes:
-          typeof parsed.whatItDoes === 'string'
-            ? parsed.whatItDoes
-            : 'Prescribed by your doctor to support your daily wellness.',
-        bestTimeToTake:
-          typeof parsed.bestTimeToTake === 'string'
-            ? parsed.bestTimeToTake
-            : instructions || 'As advised on the strip.',
-        foodGuidance:
-          typeof parsed.foodGuidance === 'string'
-            ? parsed.foodGuidance
-            : 'Take with fresh water as advised by your doctor.',
-        simplePrecautions: Array.isArray(parsed.simplePrecautions)
-          ? parsed.simplePrecautions
-          : ['Take at the same fixed time each day.', 'Do not stop without doctor guidance.'],
-        missedDoseAdvice:
-          'Please ask your doctor or pharmacist what to do if you miss a dose. Never take a double dose.',
-        storageTip:
-          typeof parsed.storageTip === 'string'
-            ? parsed.storageTip
-            : 'Keep in a cool, dry place away from heat, direct sunlight, and moisture.',
-        disclaimer: 'I only explain; your doctor decides. Always follow your physician’s exact prescription.',
-        source: 'ai',
-      };
-
-      return res.json(sanitized);
+      if (validated.isValid && validated.data) {
+        const responseData: MedicineExplainerResponse = {
+          ...validated.data,
+          source: 'ai',
+        };
+        return res.json(responseData);
+      } else {
+        console.warn('[Medicine Route] Response failed schema validation:', validated.errors);
+      }
     } catch (aiErr) {
       console.warn('[Medicine Route] AI call failed, using honest fallback.');
     }

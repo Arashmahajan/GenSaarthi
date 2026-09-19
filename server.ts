@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { PORT, LIMITS } from './server/config';
+import { PORT, LIMITS, TRUST_PROXY } from './server/config';
 import { securityHeaders } from './server/middleware/security';
 import { apiRateLimiter, aiRateLimiter, uploadRateLimiter } from './server/middleware/rateLimit';
 import { errorHandler } from './server/middleware/errorHandler';
@@ -9,9 +9,12 @@ import { checkRouter } from './server/routes/check';
 import { chatRouter } from './server/routes/chat';
 import { medicineRouter } from './server/routes/medicine';
 import { planRouter } from './server/routes/plan';
+import { verifyGeminiModelAtStartup } from './server/services/gemini';
 import { createServer as createViteServer } from 'vite';
 
 export const app = express();
+
+app.set('trust proxy', TRUST_PROXY);
 
 app.use(securityHeaders);
 app.use(express.json({ limit: LIMITS.JSON_BODY_LIMIT }));
@@ -59,6 +62,7 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Saarthi Server running on http://0.0.0.0:${PORT}`);
+      verifyGeminiModelAtStartup().catch(() => {});
     });
   }
 }

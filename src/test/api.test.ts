@@ -26,14 +26,14 @@ vi.mock('../../server/services/gemini', async () => {
         };
       }
 
-      if (prompt.includes('Senior Day Planner')) {
+      if (prompt.includes('Senior Day Planner') || prompt.includes('daily routine')) {
         return {
           text: JSON.stringify({
             greeting: 'Namaste! Here is a peaceful plan for your day.',
             summary: 'A gentle and balanced schedule with regular meals and prayer.',
             schedule: [
-              { time: '07:00 AM', activity: 'Morning walk and warm water', advice: 'Keep it gentle' },
-              { time: '08:30 AM', activity: 'Nutritious breakfast and medicine', advice: 'Take with food' },
+              { time: '07:00 AM', activity: 'Morning walk and warm water', tip: 'Keep it gentle' },
+              { time: '08:30 AM', activity: 'Nutritious breakfast and medicine', tip: 'Take with food' },
             ],
             wellnessNote: 'Drink plenty of water and rest well.',
           }),

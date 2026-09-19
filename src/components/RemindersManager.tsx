@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Calendar,
   Plus,
@@ -7,437 +7,463 @@ import {
   Trash2,
   Clock,
   AlertCircle,
-  Repeat,
+  Bell,
+  BellRing,
+  Sparkles,
   CalendarCheck,
-  X,
+  RotateCcw,
 } from 'lucide-react';
-import { GeneralReminder, Language } from '../types';
+import { GeneralReminder } from '../types';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
+import { useApp } from '../context/AppContext';
+import { t } from '../i18n';
+import { getTodayDateString, formatDisplayDate, formatDisplayTime } from '../utils/dates';
+import { ConfirmAddReminderModal } from './modals/ConfirmAddReminderModal';
 
-interface RemindersManagerProps {
-  language: Language;
-  onNavigateToCheck?: () => void;
-}
+export const RemindersManager: React.FC = () => {
+  const {
+    settings,
+    reminders,
+    deleteReminder,
+    toggleReminderDone,
+    notificationStatus,
+    requestAlerts,
+    setActiveTab,
+    loadDemo,
+    isDemo,
+  } = useApp();
 
-function getLocalDateString(d: Date = new Date()): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-export const RemindersManager: React.FC<RemindersManagerProps> = ({ language }) => {
-  const todayStr = getLocalDateString();
-
-  const [reminders, setReminders] = useState<GeneralReminder[]>(() => {
-    const saved = localStorage.getItem('saarthi_reminders');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {
-        console.warn('Could not parse saarthi_reminders');
-      }
-    }
-    return [];
-  });
+  const lang = settings.language;
+  const todayStr = getTodayDateString();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDueDate, setNewDueDate] = useState(todayStr);
-  const [newDueTime, setNewDueTime] = useState('10:00');
-  const [newRecurrence, setNewRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
-  const [newNote, setNewNote] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
+  const [deleteConfirmRem, setDeleteConfirmRem] = useState<GeneralReminder | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem('saarthi_reminders', JSON.stringify(reminders));
-  }, [reminders]);
+  // Categorize and sort reminders (Requirement 4)
+  // 1. Overdue: incomplete and dueDate < todayStr
+  // 2. Due today / upcoming with date: sorted soonest first
+  // 3. No date: upcoming
+  // 4. Completed: sorted by completion time
+  const { overdueList, pendingWithDateList, noDateList, completedList } = useMemo(() => {
+    const overdue: GeneralReminder[] = [];
+    const pendingWithDate: GeneralReminder[] = [];
+    const noDate: GeneralReminder[] = [];
+    const completed: GeneralReminder[] = [];
 
-  const handleToggleComplete = (id: string) => {
-    setReminders((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          const nextCompleted = !r.isCompleted;
-
-          // If recurring and being marked complete, advance due date
-          if (nextCompleted && r.recurrence && r.recurrence !== 'none' && r.dueDate) {
-            const currentD = new Date(r.dueDate);
-            if (r.recurrence === 'daily') {
-              currentD.setDate(currentD.getDate() + 1);
-            } else if (r.recurrence === 'weekly') {
-              currentD.setDate(currentD.getDate() + 7);
-            } else if (r.recurrence === 'monthly') {
-              currentD.setMonth(currentD.getMonth() + 1);
-            }
-            const nextDue = getLocalDateString(currentD);
-            return {
-              ...r,
-              dueDate: nextDue,
-              isCompleted: false, // reset for next cycle
-              completedAt: new Date().toISOString(),
-            };
-          }
-
-          return {
-            ...r,
-            isCompleted: nextCompleted,
-            completedAt: nextCompleted ? new Date().toISOString() : null,
-          };
-        }
-        return r;
-      })
-    );
-  };
-
-  const handleDelete = (id: string, title: string) => {
-    const confirmDelete = window.confirm(
-      language === 'hi'
-        ? `क्या आप रिमाइंडर "${title}" को हटाना चाहते हैं?`
-        : `Delete reminder "${title}"?`
-    );
-    if (confirmDelete) {
-      setReminders((prev) => prev.filter((r) => r.id !== id));
-    }
-  };
-
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    const titleTrimmed = newTitle.trim();
-    if (!titleTrimmed) {
-      setFormError('Please enter a reminder title.');
-      return;
-    }
-
-    // Check for duplicate pending reminders
-    const isDuplicate = reminders.some(
-      (r) => !r.isCompleted && r.title.toLowerCase() === titleTrimmed.toLowerCase()
-    );
-    if (isDuplicate) {
-      setFormError('A pending reminder with this exact title already exists.');
-      return;
-    }
-
-    const newReminder: GeneralReminder = {
-      id: `rem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      title: titleTrimmed,
-      dueDate: newDueDate.trim() || null,
-      dueTime: newDueTime.trim() || null,
-      recurrence: newRecurrence,
-      note: newNote.trim(),
-      isCompleted: false,
-      createdAt: new Date().toISOString(),
-      completedAt: null,
-    };
-
-    setReminders([newReminder, ...reminders]);
-    setNewTitle('');
-    setNewDueDate(todayStr);
-    setNewDueTime('10:00');
-    setNewRecurrence('none');
-    setNewNote('');
-    setIsAddOpen(false);
-  };
-
-  // Sort reminders: pending first, ordered chronologically by due date & time, then completed
-  const sortedReminders = useMemo(() => {
-    return [...reminders].sort((a, b) => {
-      if (a.isCompleted !== b.isCompleted) {
-        return a.isCompleted ? 1 : -1;
+    reminders.forEach((r) => {
+      if (r.isCompleted) {
+        completed.push(r);
+      } else if (!r.dueDate) {
+        noDate.push(r);
+      } else if (r.dueDate < todayStr) {
+        overdue.push(r);
+      } else {
+        pendingWithDate.push(r);
       }
-      // If both pending or both completed, compare dates
-      if (a.dueDate && b.dueDate) {
-        const dateCompare = a.dueDate.localeCompare(b.dueDate);
-        if (dateCompare !== 0) return dateCompare;
-        const timeA = a.dueTime || '00:00';
-        const timeB = b.dueTime || '00:00';
-        return timeA.localeCompare(timeB);
-      }
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [reminders]);
 
-  const pendingCount = reminders.filter((r) => !r.isCompleted).length;
-  const completedCount = reminders.filter((r) => r.isCompleted).length;
+    // Sort overdue by date ascending (oldest overdue first)
+    overdue.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 
-  const firstPending = sortedReminders.find((r) => !r.isCompleted);
-  const spokenSummary = `You have ${pendingCount} pending reminders. ${
-    firstPending
-      ? `Next reminder is: ${firstPending.title}, due ${firstPending.dueDate || 'soon'}.`
-      : 'All reminders are completed. Wonderful!'
-  }`;
+    // Sort upcoming by date ascending (soonest first)
+    pendingWithDate.sort((a, b) => {
+      const cmp = (a.dueDate || '').localeCompare(b.dueDate || '');
+      if (cmp !== 0) return cmp;
+      return (a.dueTime || '').localeCompare(b.dueTime || '');
+    });
+
+    return {
+      overdueList: overdue,
+      pendingWithDateList: pendingWithDate,
+      noDateList: noDate,
+      completedList: completed,
+    };
+  }, [reminders, todayStr]);
+
+  const getSpokenSummary = () => {
+    const totalActive = overdueList.length + pendingWithDateList.length + noDateList.length;
+    if (totalActive === 0) {
+      return lang === 'hi'
+        ? 'आपके पास कोई लंबित रिमाइंडर नहीं है।'
+        : 'You have no pending reminders scheduled.';
+    }
+
+    if (lang === 'hi') {
+      let str = `आपके पास ${totalActive} सक्रिय रिमाइंडर हैं।`;
+      if (overdueList.length > 0) {
+        str += ` ध्यान दें: ${overdueList.length} रिमाइंडर का समय बीत चुका है।`;
+      }
+      return str;
+    }
+
+    let str = `You have ${totalActive} active reminders.`;
+    if (overdueList.length > 0) {
+      str += ` Note: ${overdueList.length} reminders are overdue.`;
+    }
+    return str;
+  };
 
   return (
-    <div id="reminders-manager-section" className="space-y-6">
+    <div id="reminders-manager-section" className="space-y-6 max-w-4xl mx-auto">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-50 via-stone-50 to-orange-50 border border-amber-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-900 font-bold text-xs uppercase tracking-wide">
-              <Calendar className="w-4 h-4 text-amber-700" />
-              <span>याददाश्त साथी • Daily & Bill Reminders</span>
+      <div className="bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-800 dark:text-amber-300">
+              <Calendar className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-stone-900 font-heading">
-              {language === 'hi' ? 'महत्वपूर्ण काम और बिल रिमाइंडर' : 'My Daily & Bill Reminders'}
-            </h2>
-            <p className="text-stone-600 text-base max-w-2xl leading-relaxed">
-              {language === 'hi'
-                ? 'बिजली बिल की अंतिम तारीख, डॉक्टर की अपॉइंटमेंट या बैंक का काम—सारथी समय पर याद रखेगा।'
-                : 'Keep track of utility bills, doctor visits, pension deadlines, and family events without stress.'}
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100 font-heading">
+              {t('remindersTab', lang)}
+            </h1>
           </div>
-
-          <div className="flex items-center gap-3 self-start sm:self-center">
-            {reminders.length > 0 && (
-              <VoiceSpeakerButton textToSpeak={spokenSummary} label="Listen / सुनें" size="md" />
-            )}
-            <button
-              id="add-reminder-btn"
-              type="button"
-              onClick={() => {
-                setIsAddOpen(true);
-                setFormError(null);
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-bold text-sm shadow-md transition-transform active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{language === 'hi' ? 'रिमाइंडर जोड़ें' : 'Add Reminder'}</span>
-            </button>
-          </div>
+          <p className="text-stone-700 dark:text-stone-300 text-base leading-relaxed">
+            {lang === 'hi'
+              ? 'बिजली बिल, डॉक्टर की भेंट, बैंक कार्य और दैनिक कामों का ध्यान रखें।'
+              : 'Keep track of electricity bills, clinic appointments, and family errands.'}
+          </p>
         </div>
 
-        {/* Counter */}
-        <div className="mt-4 pt-3 border-t border-amber-200/80 flex items-center gap-2 text-sm text-stone-700">
-          <span className="font-bold text-stone-900">{pendingCount}</span>
-          <span>pending reminders</span>
-          <span className="text-stone-400">•</span>
-          <span>{completedCount} completed</span>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <VoiceSpeakerButton
+            textToSpeak={getSpokenSummary()}
+            lang={lang === 'hi' ? 'hi-IN' : 'en-IN'}
+            speechRate={settings.speechRate}
+            size="md"
+          />
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('plan')}
+            className="min-h-[48px] px-4 py-2.5 rounded-2xl bg-amber-100 hover:bg-amber-200 text-amber-950 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 dark:text-amber-200 font-bold text-sm border border-amber-300 dark:border-amber-800 flex items-center space-x-2 transition-colors"
+          >
+            <Sparkles className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+            <span>{t('planDayBtn', lang)}</span>
+          </button>
+
+          <button
+            id="open-add-reminder-btn"
+            type="button"
+            onClick={() => setIsAddOpen(true)}
+            className="min-h-[48px] px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-base transition-colors shadow-xs flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <Plus className="w-5 h-5" />
+            <span>{t('addReminderBtn', lang)}</span>
+          </button>
         </div>
       </div>
 
-      {/* Add Reminder Modal / Form */}
-      {isAddOpen && (
-        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-4 animate-fade-in max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
-              <h3 className="text-lg font-bold text-stone-900 flex items-center gap-2">
-                <CalendarCheck className="w-5 h-5 text-amber-600" />
-                <span>Add a New Reminder</span>
-              </h3>
+      {/* Browser Notification Banner (Requirement 4) */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-amber-800 dark:text-amber-300 shrink-0">
+            <Bell className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+              {t('alertsTitle', lang)}
+            </h2>
+            <p className="text-xs text-stone-600 dark:text-stone-400">
+              {notificationStatus === 'granted'
+                ? t('alertsEnabled', lang)
+                : notificationStatus === 'denied'
+                ? t('alertsDenied', lang)
+                : notificationStatus === 'unsupported'
+                ? t('alertsUnsupported', lang)
+                : lang === 'hi'
+                ? 'समय पर आवाज़ और स्क्रीन सूचनाएं पाने के लिए अलर्ट चालू करें।'
+                : 'Receive gentle sound & screen alerts while using the app.'}
+            </p>
+          </div>
+        </div>
+
+        {notificationStatus === 'default' && (
+          <button
+            type="button"
+            onClick={requestAlerts}
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-xs shrink-0 self-start sm:self-center"
+          >
+            {t('turnOnAlerts', lang)}
+          </button>
+        )}
+      </div>
+
+      {/* Reminders List */}
+      {reminders.length === 0 ? (
+        /* Empty State */
+        <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-8 sm:p-12 text-center space-y-4 shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto">
+            <CalendarCheck className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-stone-900 dark:text-stone-100">
+            {t('noRemindersYet', lang)}
+          </h2>
+          <p className="text-stone-600 dark:text-stone-400 text-sm max-w-md mx-auto leading-relaxed">
+            {lang === 'hi'
+              ? 'बिल भुगतान, डॉक्टर का समय, या कोई भी ज़रूरी काम जोड़ने के लिए नीचे टैप करें।'
+              : 'Add bills, doctor appointments, or daily tasks to receive gentle, clear reminders.'}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsAddOpen(true)}
+              className="min-h-[48px] px-6 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-base transition-colors shadow-sm"
+            >
+              {t('addReminderBtn', lang)}
+            </button>
+            {!isDemo && (
               <button
                 type="button"
-                onClick={() => setIsAddOpen(false)}
-                className="p-1.5 rounded-lg text-stone-500 hover:bg-stone-100"
+                onClick={loadDemo}
+                className="min-h-[48px] px-5 py-3 rounded-2xl border border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-semibold text-sm transition-colors"
               >
-                <X className="w-5 h-5" />
+                {t('loadDemoData', lang)}
               </button>
-            </div>
-
-            {formError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{formError}</span>
-              </div>
             )}
-
-            <form onSubmit={handleAdd} className="space-y-3.5 text-sm">
-              <div>
-                <label htmlFor="rem-title" className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                  Reminder Title *
-                </label>
-                <input
-                  id="rem-title"
-                  type="text"
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Electricity Bill, Dr. Sharma Appointment, Gas cylinder booking"
-                  className="w-full p-3 rounded-xl border border-stone-300 text-base focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="rem-due-date" className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                    Due Date (तारीख)
-                  </label>
-                  <input
-                    id="rem-due-date"
-                    type="date"
-                    value={newDueDate}
-                    onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-stone-300 text-sm focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="rem-due-time" className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                    Time (समय)
-                  </label>
-                  <input
-                    id="rem-due-time"
-                    type="time"
-                    value={newDueTime}
-                    onChange={(e) => setNewDueTime(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-stone-300 text-sm focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="rem-recurrence" className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                  Repeat Routine (पुनरावृत्ति):
-                </label>
-                <select
-                  id="rem-recurrence"
-                  value={newRecurrence}
-                  onChange={(e) => setNewRecurrence(e.target.value as any)}
-                  className="w-full p-2.5 rounded-xl border border-stone-300 text-sm focus:border-amber-500 focus:outline-none"
-                >
-                  <option value="none">One-time only (सिर्फ एक बार)</option>
-                  <option value="daily">Every day (रोजाना)</option>
-                  <option value="weekly">Every week (हर हफ्ते)</option>
-                  <option value="monthly">Every month (हर महीने - जैसे बिजली/गैस बिल)</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="rem-note" className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                  Helpful Note or Instruction:
-                </label>
-                <textarea
-                  id="rem-note"
-                  rows={2}
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="e.g. Carry Aadhaar Card and previous receipt..."
-                  className="w-full p-3 rounded-xl border border-stone-300 text-sm focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddOpen(false)}
-                  className="px-4 py-2 text-stone-600 font-semibold hover:bg-stone-100 rounded-xl text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-xs text-xs"
-                >
-                  Save Reminder
-                </button>
-              </div>
-            </form>
           </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Overdue Section (Grouped at top with red badge) */}
+          {overdueList.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2 text-rose-700 dark:text-rose-400">
+                <AlertCircle className="w-5 h-5" />
+                <h2 className="text-lg font-bold">
+                  {t('overdue', lang)} ({overdueList.length})
+                </h2>
+              </div>
+
+              <div className="space-y-3">
+                {overdueList.map((rem) => (
+                  <ReminderCard
+                    key={rem.id}
+                    reminder={rem}
+                    lang={lang}
+                    isOverdue={true}
+                    onToggle={() => toggleReminderDone(rem.id)}
+                    onDelete={() => setDeleteConfirmRem(rem)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Upcoming & Due Today Section */}
+          {pendingWithDateList.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">
+                {t('activeReminders', lang)} ({pendingWithDateList.length})
+              </h2>
+
+              <div className="space-y-3">
+                {pendingWithDateList.map((rem) => (
+                  <ReminderCard
+                    key={rem.id}
+                    reminder={rem}
+                    lang={lang}
+                    isToday={rem.dueDate === todayStr}
+                    onToggle={() => toggleReminderDone(rem.id)}
+                    onDelete={() => setDeleteConfirmRem(rem)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Reminders with No Date */}
+          {noDateList.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">
+                {t('upcoming', lang)} ({noDateList.length})
+              </h2>
+
+              <div className="space-y-3">
+                {noDateList.map((rem) => (
+                  <ReminderCard
+                    key={rem.id}
+                    reminder={rem}
+                    lang={lang}
+                    onToggle={() => toggleReminderDone(rem.id)}
+                    onDelete={() => setDeleteConfirmRem(rem)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Completed Reminders */}
+          {completedList.length > 0 && (
+            <div className="space-y-3 pt-4 border-t border-stone-200 dark:border-stone-800">
+              <h2 className="text-base font-bold text-stone-600 dark:text-stone-400">
+                {t('completedReminders', lang)} ({completedList.length})
+              </h2>
+
+              <div className="space-y-2 opacity-80">
+                {completedList.map((rem) => (
+                  <ReminderCard
+                    key={rem.id}
+                    reminder={rem}
+                    lang={lang}
+                    onToggle={() => toggleReminderDone(rem.id)}
+                    onDelete={() => setDeleteConfirmRem(rem)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Reminders List */}
-      <div className="space-y-3">
-        {sortedReminders.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-3xl border border-stone-200 p-6 space-y-3">
-            <Calendar className="w-12 h-12 text-stone-300 mx-auto" />
-            <div className="space-y-1">
-              <p className="text-stone-700 text-base font-bold">No reminders added yet.</p>
-              <p className="text-stone-400 text-sm">
-                Tap "Add Reminder" above to set dates for utility bills, doctor visits, or life certificates.
-              </p>
+      {/* Add Reminder Modal */}
+      <ConfirmAddReminderModal
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onSuccess={() => {}}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmRem && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs"
+        >
+          <div className="bg-white dark:bg-stone-900 rounded-2xl max-w-sm w-full p-6 border border-stone-200 dark:border-stone-700 shadow-xl space-y-4">
+            <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">
+              {lang === 'hi' ? 'रिमाइंडर हटाएं?' : 'Delete Reminder?'}
+            </h3>
+            <p className="text-sm text-stone-700 dark:text-stone-300">
+              {lang === 'hi'
+                ? `क्या आप रिमाइंडर "${deleteConfirmRem.title}" को हटाना चाहते हैं?`
+                : `Are you sure you want to remove reminder "${deleteConfirmRem.title}"?`}
+            </p>
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmRem(null)}
+                className="min-h-[48px] px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 font-medium"
+              >
+                {t('cancel', lang)}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteReminder(deleteConfirmRem.id);
+                  setDeleteConfirmRem(null);
+                }}
+                className="min-h-[48px] px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold"
+              >
+                {t('delete', lang)}
+              </button>
             </div>
           </div>
-        ) : (
-          sortedReminders.map((r) => {
-            const isOverdue = !r.isCompleted && r.dueDate && r.dueDate < todayStr;
-            const isToday = !r.isCompleted && r.dueDate === todayStr;
+        </div>
+      )}
+    </div>
+  );
+};
 
-            return (
-              <div
-                key={r.id}
-                className={`p-4 sm:p-5 rounded-2xl border transition-all flex items-start justify-between gap-4 ${
-                  r.isCompleted
-                    ? 'bg-stone-50 border-stone-200 opacity-60'
-                    : isOverdue
-                    ? 'bg-rose-50/50 border-rose-300 shadow-xs'
-                    : isToday
-                    ? 'bg-amber-50/60 border-amber-300 shadow-xs'
-                    : 'bg-white border-stone-200 hover:border-amber-300 shadow-xs'
-                }`}
-              >
-                <div className="flex items-start gap-3 flex-1">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleComplete(r.id)}
-                    className="mt-1 text-stone-400 hover:text-emerald-600 transition-colors focus:outline-none"
-                    title={r.isCompleted ? 'Mark pending' : 'Mark completed'}
-                  >
-                    {r.isCompleted ? (
-                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                    ) : (
-                      <Circle className="w-6 h-6 text-stone-400 hover:text-stone-600" />
-                    )}
-                  </button>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4
-                        className={`text-base sm:text-lg font-bold text-stone-900 ${
-                          r.isCompleted ? 'line-through text-stone-500' : ''
-                        }`}
-                      >
-                        {r.title}
-                      </h4>
-                      {isOverdue && (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                          Overdue (तारीख निकल गई)
-                        </span>
-                      )}
-                      {isToday && (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                          Due Today (आज का काम)
-                        </span>
-                      )}
-                      {r.recurrence && r.recurrence !== 'none' && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 flex items-center gap-1 border border-stone-200">
-                          <Repeat className="w-3 h-3 text-stone-500" />
-                          <span>{r.recurrence}</span>
-                        </span>
-                      )}
-                    </div>
+interface ReminderCardProps {
+  reminder: GeneralReminder;
+  lang: 'en' | 'hi';
+  isOverdue?: boolean;
+  isToday?: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}
 
-                    {r.dueDate && (
-                      <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-stone-600">
-                        <Clock className="w-3.5 h-3.5 text-stone-400" />
-                        <span>
-                          {r.dueDate} {r.dueTime ? `at ${r.dueTime}` : ''}
-                        </span>
-                      </div>
-                    )}
+const ReminderCard: React.FC<ReminderCardProps> = ({
+  reminder,
+  lang,
+  isOverdue,
+  isToday,
+  onToggle,
+  onDelete,
+}) => {
+  return (
+    <div
+      className={`border rounded-2xl p-4 sm:p-5 transition-all shadow-xs bg-white dark:bg-stone-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+        reminder.isCompleted
+          ? 'border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/40 line-through opacity-70'
+          : isOverdue
+          ? 'border-rose-300 dark:border-rose-800 bg-rose-50/30'
+          : isToday
+          ? 'border-amber-300 dark:border-amber-800 bg-amber-50/20'
+          : 'border-stone-200 dark:border-stone-800'
+      }`}
+    >
+      <div className="flex items-start space-x-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center text-stone-400 hover:text-emerald-600 transition-colors shrink-0"
+          title={reminder.isCompleted ? t('markIncomplete', lang) : t('markCompleted', lang)}
+          aria-label={reminder.isCompleted ? t('markIncomplete', lang) : t('markCompleted', lang)}
+        >
+          {reminder.isCompleted ? (
+            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+          ) : (
+            <Circle className="w-6 h-6 text-stone-400 hover:text-emerald-600" />
+          )}
+        </button>
 
-                    {r.note && (
-                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">{r.note}</p>
-                    )}
-                  </div>
-                </div>
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+            <span
+              className={`text-base font-bold text-stone-900 dark:text-stone-100 ${
+                reminder.isCompleted ? 'line-through text-stone-500' : ''
+              }`}
+            >
+              {reminder.title}
+            </span>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(r.id, r.title)}
-                    className="p-2 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                    title="Delete reminder"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
+            {isOverdue && !reminder.isCompleted && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 font-bold border border-rose-300 dark:border-rose-800">
+                {t('overdue', lang)}
+              </span>
+            )}
+
+            {isToday && !reminder.isCompleted && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 font-bold border border-amber-300 dark:border-amber-800">
+                {t('dueToday', lang)}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 dark:text-stone-400 font-medium">
+            {reminder.dueDate && (
+              <span className="flex items-center space-x-1">
+                <Calendar className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+                <span>{formatDisplayDate(reminder.dueDate, lang)}</span>
+              </span>
+            )}
+
+            {reminder.dueTime && (
+              <span className="flex items-center space-x-1">
+                <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+                <span>{formatDisplayTime(reminder.dueTime)}</span>
+              </span>
+            )}
+          </div>
+
+          {reminder.note && (
+            <p className="text-xs text-stone-700 dark:text-stone-300 mt-1">
+              {reminder.note}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end space-x-2 shrink-0 self-end sm:self-center">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center text-stone-400 hover:text-rose-600 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+          title={t('delete', lang)}
+          aria-label={`${t('delete', lang)} ${reminder.title}`}
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
       </div>
     </div>
   );

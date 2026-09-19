@@ -2,7 +2,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const PORT = Number(process.env.PORT) || 3000;
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+export const TRUST_PROXY = process.env.TRUST_PROXY
+  ? !isNaN(Number(process.env.TRUST_PROXY))
+    ? Number(process.env.TRUST_PROXY)
+    : process.env.TRUST_PROXY
+  : 1;
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
 export const LIMITS = {
   MAX_TEXT_LENGTH: 4000,
@@ -11,10 +16,11 @@ export const LIMITS = {
   MAX_MEDICINE_NAME_LENGTH: 100,
   MAX_PLAN_TEXT_LENGTH: 2000,
   MAX_IMAGE_SIZE_BYTES: 4 * 1024 * 1024, // 4MB decoded
-  JSON_BODY_LIMIT: '5mb',
+  JSON_BODY_LIMIT: '6mb',
   GEMINI_TIMEOUT_MS: 20000, // 20 seconds
   RATE_LIMIT_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
   RATE_LIMIT_MAX_REQUESTS: 100,
+  AI_RATE_LIMIT_MAX_REQUESTS: 20, // 20 per 15 minutes per client for AI routes
 };
 
 export const HELPLINES = {
