@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Landmark,
   Smartphone,
@@ -7,8 +7,13 @@ import {
   Heart,
   ChevronRight,
   Sparkles,
+  FileText,
+  ShieldAlert,
+  HelpCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { DoctorVisitPrepModal } from './DoctorVisitPrepModal';
+import { IncidentChecklist } from './IncidentChecklist';
 import { t } from '../i18n';
 
 interface MoreMenuProps {
@@ -17,8 +22,9 @@ interface MoreMenuProps {
 }
 
 export const MoreMenu: React.FC<MoreMenuProps> = ({ onNavigate, onOpenSettings }) => {
-  const { settings } = useApp();
+  const { settings, setIsOnboardingOpen, isDoctorVisitOpen, setIsDoctorVisitOpen } = useApp();
   const lang = settings.language;
+  const [isIncidentChecklistOpen, setIsIncidentChecklistOpen] = useState(false);
 
   const moreItems = [
     {
@@ -27,6 +33,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({ onNavigate, onOpenSettings }
       desc: lang === 'hi' ? 'दवाइयों और रिमाइंडर को मिलाकर आज की शांतिपूर्ण दिनचर्या बनाएं।' : 'Automatically merge today’s medicines and reminders into a calm routine.',
       icon: <Sun className="w-7 h-7 text-amber-600 dark:text-amber-400" />,
       tag: lang === 'hi' ? 'दैनिक योजना' : 'Routine',
+      onClick: () => onNavigate('plan'),
     },
     {
       id: 'schemes',
@@ -34,6 +41,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({ onNavigate, onOpenSettings }
       desc: lang === 'hi' ? 'वरिष्ठ नागरिक बचत योजना, आयुष्मान भारत, पीएम वय वंदना एवं रेल लाभ।' : 'SCSS, Ayushman Bharat, PMVVY, and senior government welfare programs.',
       icon: <Landmark className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />,
       tag: lang === 'hi' ? 'सरकारी लाभ' : 'Welfare',
+      onClick: () => onNavigate('schemes'),
     },
     {
       id: 'guides',
@@ -41,6 +49,31 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({ onNavigate, onOpenSettings }
       desc: lang === 'hi' ? 'फोनपे से बिजली बिल, व्हाट्सएप वीडियो कॉल, और जीवन प्रमाण पत्र के सरल चरण।' : 'Step-by-step simple guides for PhonePe electricity bill, WhatsApp, Jeevan Pramaan.',
       icon: <Smartphone className="w-7 h-7 text-emerald-600 dark:text-emerald-400" />,
       tag: lang === 'hi' ? 'कदम-दर-कदम' : 'Tutorials',
+      onClick: () => onNavigate('guides'),
+    },
+    {
+      id: 'doctor-visit',
+      title: t('prepDoctorVisit', lang),
+      desc: lang === 'hi' ? 'डॉक्टर के पास जाने से पहले दवाइयों की सूची, प्रश्न और स्वास्थ्य सार तैयार करें।' : 'Prepare your questions, symptoms, and current medicine list before visiting doctor.',
+      icon: <FileText className="w-7 h-7 text-teal-600 dark:text-teal-400" />,
+      tag: lang === 'hi' ? 'स्वास्थ्य तैयारी' : 'Doctor Prep',
+      onClick: () => setIsDoctorVisitOpen(true),
+    },
+    {
+      id: 'incident-checklist',
+      title: lang === 'hi' ? 'घटना सहायता चेकलिस्ट' : 'Incident Support Checklist',
+      desc: lang === 'hi' ? 'संदिग्ध कॉल या धोखे की स्थिति में क्या करें: हेल्पलाइन नंबर, कदम और सुरक्षित नोट्स।' : 'Clear immediate steps if a suspicious call or message happened. 1930 & cyber helpline.',
+      icon: <ShieldAlert className="w-7 h-7 text-rose-600 dark:text-rose-400" />,
+      tag: lang === 'hi' ? 'सुरक्षा सहायता' : 'Scam Help',
+      onClick: () => setIsIncidentChecklistOpen(true),
+    },
+    {
+      id: 'welcome-tour',
+      title: t('onboardingTitle', lang),
+      desc: lang === 'hi' ? 'ऐप की मुख्य विशेषताओं, फ़ॉन्ट आकार और भाषा सेटिंग का परिचय।' : 'Revisit the welcome guide to customize font size, speech rate, and language.',
+      icon: <HelpCircle className="w-7 h-7 text-amber-600 dark:text-amber-400" />,
+      tag: lang === 'hi' ? 'परिचय' : 'Setup',
+      onClick: () => setIsOnboardingOpen(true),
     },
   ];
 
@@ -64,7 +97,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({ onNavigate, onOpenSettings }
           <div
             key={item.id}
             id={`more-item-${item.id}`}
-            onClick={() => onNavigate(item.id)}
+            onClick={item.onClick}
             className="p-6 rounded-3xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 hover:border-amber-400 dark:hover:border-amber-600 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between space-y-4 group active:scale-98"
           >
             <div className="space-y-3">
@@ -126,6 +159,16 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({ onNavigate, onOpenSettings }
           </div>
         </div>
       </div>
+
+      <DoctorVisitPrepModal
+        isOpen={isDoctorVisitOpen}
+        onClose={() => setIsDoctorVisitOpen(false)}
+      />
+
+      <IncidentChecklist
+        isOpen={isIncidentChecklistOpen}
+        onClose={() => setIsIncidentChecklistOpen(false)}
+      />
     </div>
   );
 };

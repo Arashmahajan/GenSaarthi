@@ -10,6 +10,7 @@ export interface AccessibilitySettings {
   language: Language;
   soundEnabled: boolean;
   userName?: string;
+  simpleMode?: boolean;
 }
 
 export type RiskLevel = 'safe' | 'careful' | 'scam';
@@ -31,6 +32,14 @@ export interface UnifiedCheckResult {
   source: 'ai' | 'fallback';
 }
 
+export interface StructuredBill {
+  amountText: string;
+  amountValue: number | null;
+  dueDate: string; // ISO or YYYY-MM-DD
+  paid: boolean;
+  sourceTitle: string;
+}
+
 export interface GeneralReminder {
   id: string;
   title: string;
@@ -42,6 +51,7 @@ export interface GeneralReminder {
   isCompleted: boolean;
   createdAt: string;
   completedAt?: string | null;
+  bill?: StructuredBill | null;
 }
 
 export type DoseSlot = 'morning' | 'afternoon' | 'evening' | 'night';
@@ -138,4 +148,44 @@ export interface EmergencyContact {
   isPrimary: boolean;
   isDemo?: boolean;
   isSample?: boolean;
+}
+
+export type MoodType = 'good' | 'soso' | 'low';
+
+export interface DailyCheckinRecord {
+  date: string; // 'YYYY-MM-DD'
+  mood: MoodType;
+}
+
+export interface IncidentNote {
+  id: string;
+  dateTime: string;
+  amountLost?: string;
+  transactionId?: string;
+  senderContact?: string;
+  notes?: string;
+  choices: string[];
+}
+
+export interface DoctorVisitItem {
+  id: string;
+  text: string;
+  isChecked: boolean;
+  isCustom?: boolean;
+}
+
+export interface DoctorVisitQuestion {
+  id: string;
+  question: string;
+  answerNote?: string;
+  isCustom?: boolean;
+}
+
+export interface DoctorVisitPrepData {
+  doctorName?: string;
+  symptoms?: string;
+  includedMedicineNames?: string[];
+  bringItems: string[];
+  questionsToAsk: string[];
+  updatedAt?: string;
 }

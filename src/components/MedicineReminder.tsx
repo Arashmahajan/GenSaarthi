@@ -11,6 +11,7 @@ import {
   Package,
   RotateCcw,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { DoseSlot, FoodTiming, MedicineItem } from '../types';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
@@ -18,6 +19,7 @@ import { useApp } from '../context/AppContext';
 import { t } from '../i18n';
 import { getTodayDateString, getCurrentWeekDays } from '../utils/dates';
 import { ConfirmAddMedicineModal } from './modals/ConfirmAddMedicineModal';
+import { DoctorVisitPrepModal } from './DoctorVisitPrepModal';
 
 export const MedicineReminder: React.FC = () => {
   const {
@@ -29,6 +31,8 @@ export const MedicineReminder: React.FC = () => {
     undoDoseTaken,
     loadDemo,
     isDemo,
+    isDoctorVisitOpen,
+    setIsDoctorVisitOpen,
   } = useApp();
   const lang = settings.language;
   const todayStr = getTodayDateString();
@@ -94,6 +98,14 @@ export const MedicineReminder: React.FC = () => {
             speechRate={settings.speechRate}
             size="md"
           />
+          <button
+            type="button"
+            onClick={() => setIsDoctorVisitOpen(true)}
+            className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-teal-50 hover:bg-teal-100 text-teal-950 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 dark:text-teal-200 font-bold text-sm border border-teal-300 dark:border-teal-800 flex items-center space-x-2 transition-colors"
+          >
+            <FileText className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+            <span>{t('prepDoctorVisit', lang)}</span>
+          </button>
           <button
             id="open-add-medicine-btn"
             type="button"
@@ -519,6 +531,12 @@ export const MedicineReminder: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Feature 5: Doctor Visit Prep Modal */}
+      <DoctorVisitPrepModal
+        isOpen={isDoctorVisitOpen}
+        onClose={() => setIsDoctorVisitOpen(false)}
+      />
     </div>
   );
 };

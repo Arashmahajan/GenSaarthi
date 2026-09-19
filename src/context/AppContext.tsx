@@ -6,6 +6,10 @@ import {
   EmergencyContact,
   GeneralReminder,
   MedicineItem,
+  MoodType,
+  DailyCheckinRecord,
+  IncidentNote,
+  DoctorVisitPrepData,
 } from '../types';
 import * as storage from '../services/storage';
 import {
@@ -50,6 +54,34 @@ interface AppContextType {
   setIsSOSOpen: (open: boolean) => void;
   sosTargetNumber?: string;
   setSOSTargetNumber: (num?: string) => void;
+  // Feature 3: Onboarding & Simple Mode
+  isOnboardingOpen: boolean;
+  setIsOnboardingOpen: (open: boolean) => void;
+  openOnboarding: () => void;
+  completeOnboarding: (useSimpleMode?: boolean) => void;
+  isSimpleMode: boolean;
+  setSimpleMode: (enabled: boolean) => void;
+  // Feature 4: Daily Check-in
+  checkins: DailyCheckinRecord[];
+  recordCheckin: (mood: MoodType) => void;
+  deleteCheckinHistory: () => void;
+  isCheckinEnabled: boolean;
+  toggleCheckinEnabled: () => void;
+  checkinNudgeDismissedDate: string | null;
+  dismissCheckinNudge: () => void;
+  // Feature 1: Scam Incident Checklist
+  incidentNotes: IncidentNote[];
+  saveIncidentNote: (note: IncidentNote) => void;
+  deleteIncidentNote: (id: string) => void;
+  isIncidentModalOpen: boolean;
+  setIsIncidentModalOpen: (open: boolean) => void;
+  incidentContext: { senderNumber?: string; link?: string; amount?: string } | null;
+  openIncidentFlow: (ctx?: { senderNumber?: string; link?: string; amount?: string }) => void;
+  // Feature 5: Doctor Visit Prep
+  isDoctorVisitOpen: boolean;
+  setIsDoctorVisitOpen: (open: boolean) => void;
+  doctorVisitData: DoctorVisitPrepData | null;
+  saveDoctorVisitData: (data: DoctorVisitPrepData) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -91,6 +123,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isSOSOpen, setIsSOSOpen] = useState(false);
   const [sosTargetNumber, setSOSTargetNumber] = useState<string | undefined>(undefined);
+
+  // Feature 3: Onboarding & Simple Mode
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !storage.isOnboardingCompleted());
+  const [isSimpleMode, setIsSimpleModeState] = useState<boolean>(() => storage.isSimpleMode());
+
+  // Feature 4: Daily Check-in
+  const [checkins, setCheckinsState] = useState<DailyCheckinRecord[]>(() => storage.getDailyCheckins());
+  const [isCheckinEnabled, setIsCheckinEnabledState] = useState<boolean>(() => storage.isCheckinEnabled());
+  const [checkinNudgeDismissedDate, setCheckinNudgeDismissedDateState] = useState<string | null>(() =>
+    storage.getCheckinNudgeDismissedDate()
+  );
+
+  // Feature 1: Scam Incident Checklist
+  const [incidentNotes, setIncidentNotesState] = useState<IncidentNote[]>(() => storage.getIncidentNotes());
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [incidentContext, setIncidentContext] = useState<{
+    senderNumber?: string;
+    link?: string;
+    amount?: string;
+  } | null>(null);
+
+  // Feature 5: Doctor Visit Prep
+  const [isDoctorVisitOpen, setIsDoctorVisitOpen] = useState(false);
+  const [doctorVisitData, setDoctorVisitDataState] = useState<DoctorVisitPrepData | null>(() =>
+    storage.getDoctorVisitData()
+  );
 
   // Hash change routing
   useEffect(() => {
@@ -379,6 +437,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotificationStatus(res);
   }, []);
 
+  // Feature 3: Onboarding & Simple Mode
+  const openOnboarding = useCallback(() => {
+    setIsOnboardingOpen(true);
+  }, []);
+
+  const completeOnboarding = useCallback((useSimpleModeOpt?: boolean) => {
+    storage.setOnboardingCompleted(true);
+    setIsOnboardingOpen(false);
+    if (useSimpleModeOpt !== undefined) {
+      storage.setSimpleMode(useSimpleModeOpt);
+      setIsSimpleModeState(useSimpleModeOpt);
+    }
+  }, []);
+
+  const setSimpleMode = useCallback((enabled: boolean) => {
+    storage.setSimpleMode(enabled);
+    setIsSimpleModeState(enabled);
+  }, []);
+
+  // Feature 4: Daily Check-in
+  const recordCheckin = useCallback((mood: MoodType) => {
+    const today = getTodayDateString();
+    const updated = storage.saveDailyCheckin(today, mood);
+    setCheckinsState(updated);
+  }, []);
+
+  const deleteCheckinHistory = useCallback(() => {
+    storage.clearCheckinHistory();
+    setCheckinsState([]);
+  }, []);
+
+  const toggleCheckinEnabled = useCallback(() => {
+    setIsCheckinEnabledState((prev) => {
+      const next = !prev;
+      storage.setCheckinEnabled(next);
+      return next;
+    });
+  }, []);
+
+  const dismissCheckinNudge = useCallback(() => {
+    const today = getTodayDateString();
+    storage.dismissCheckinNudge(today);
+    setCheckinNudgeDismissedDateState(today);
+  }, []);
+
+  // Feature 1: Scam Incident Checklist
+  const saveIncidentNote = useCallback((note: IncidentNote) => {
+    const updated = storage.saveIncidentNote(note);
+    setIncidentNotesState(updated);
+  }, []);
+
+  const deleteIncidentNote = useCallback((id: string) => {
+    const updated = storage.deleteIncidentNote(id);
+    setIncidentNotesState(updated);
+  }, []);
+
+  const openIncidentFlow = useCallback((ctx?: { senderNumber?: string; link?: string; amount?: string }) => {
+    setIncidentContext(ctx || null);
+    setIsIncidentModalOpen(true);
+  }, []);
+
+  // Feature 5: Doctor Visit Prep
+  const saveDoctorVisitData = useCallback((data: DoctorVisitPrepData) => {
+    storage.saveDoctorVisitData(data);
+    setDoctorVisitDataState(data);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -414,6 +539,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsSOSOpen,
         sosTargetNumber,
         setSOSTargetNumber,
+        isOnboardingOpen,
+        setIsOnboardingOpen,
+        openOnboarding,
+        completeOnboarding,
+        isSimpleMode,
+        setSimpleMode,
+        checkins,
+        recordCheckin,
+        deleteCheckinHistory,
+        isCheckinEnabled,
+        toggleCheckinEnabled,
+        checkinNudgeDismissedDate,
+        dismissCheckinNudge,
+        incidentNotes,
+        saveIncidentNote,
+        deleteIncidentNote,
+        isIncidentModalOpen,
+        setIsIncidentModalOpen,
+        incidentContext,
+        openIncidentFlow,
+        isDoctorVisitOpen,
+        setIsDoctorVisitOpen,
+        doctorVisitData,
+        saveDoctorVisitData,
       }}
     >
       {children}

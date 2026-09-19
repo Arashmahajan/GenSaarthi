@@ -12,13 +12,18 @@ import {
   Sparkles,
   CalendarCheck,
   RotateCcw,
+  CalendarPlus,
+  FileText,
 } from 'lucide-react';
 import { GeneralReminder } from '../types';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
 import { useApp } from '../context/AppContext';
 import { t } from '../i18n';
 import { getTodayDateString, formatDisplayDate, formatDisplayTime } from '../utils/dates';
+import { buildIcsCalendar, downloadIcsFile, slugifyTitle } from '../lib/ics';
 import { ConfirmAddReminderModal } from './modals/ConfirmAddReminderModal';
+import { BillsSection } from './BillsSection';
+import { DoctorVisitPrepModal } from './DoctorVisitPrepModal';
 
 export const RemindersManager: React.FC = () => {
   const {
@@ -31,6 +36,8 @@ export const RemindersManager: React.FC = () => {
     setActiveTab,
     loadDemo,
     isDemo,
+    isDoctorVisitOpen,
+    setIsDoctorVisitOpen,
   } = useApp();
 
   const lang = settings.language;
@@ -79,6 +86,29 @@ export const RemindersManager: React.FC = () => {
       completedList: completed,
     };
   }, [reminders, todayStr]);
+
+  const handleExportAllIcs = () => {
+    const activeWithDate = reminders.filter((r) => !r.isCompleted && r.dueDate);
+    if (activeWithDate.length === 0) {
+      alert(
+        lang === 'hi'
+          ? 'कैलेंडर में जोड़ने के लिए कोई दिनांक वाला सक्रिय रिमाइंडर नहीं मिला।'
+          : 'No active reminders with due dates found to export.'
+      );
+      return;
+    }
+    const ics = buildIcsCalendar(
+      activeWithDate.map((r) => ({
+        id: r.id,
+        title: r.title,
+        description: r.note,
+        date: r.dueDate,
+        time: r.dueTime || '10:00',
+        category: r.bill ? 'bill' : 'reminder',
+      }))
+    );
+    downloadIcsFile(`saarthi-reminders-${todayStr}.ics`, ics);
+  };
 
   const getSpokenSummary = () => {
     const totalActive = overdueList.length + pendingWithDateList.length + noDateList.length;
@@ -130,6 +160,25 @@ export const RemindersManager: React.FC = () => {
             speechRate={settings.speechRate}
             size="md"
           />
+
+          <button
+            type="button"
+            onClick={handleExportAllIcs}
+            className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-200 font-bold text-sm border border-stone-300 dark:border-stone-700 flex items-center space-x-2 transition-colors"
+            title={t('exportAllActiveReminders', lang)}
+          >
+            <CalendarPlus className="w-4 h-4 text-amber-600" />
+            <span>{t('exportAllActiveReminders', lang)}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsDoctorVisitOpen(true)}
+            className="min-h-[48px] px-3.5 py-2.5 rounded-2xl bg-teal-50 hover:bg-teal-100 text-teal-950 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 dark:text-teal-200 font-bold text-sm border border-teal-300 dark:border-teal-800 flex items-center space-x-2 transition-colors"
+          >
+            <FileText className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+            <span>{t('prepDoctorVisit', lang)}</span>
+          </button>
 
           <button
             type="button"
@@ -186,6 +235,9 @@ export const RemindersManager: React.FC = () => {
           </button>
         )}
       </div>
+
+      {/* Feature 7: Bills This Month */}
+      <BillsSection />
 
       {/* Reminders List */}
       {reminders.length === 0 ? (
@@ -359,6 +411,12 @@ export const RemindersManager: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Feature 5: Doctor Visit Prep Modal */}
+      <DoctorVisitPrepModal
+        isOpen={isDoctorVisitOpen}
+        onClose={() => setIsDoctorVisitOpen(false)}
+      />
     </div>
   );
 };
@@ -455,6 +513,31 @@ const ReminderCard: React.FC<ReminderCardProps> = ({
       </div>
 
       <div className="flex items-center justify-end space-x-2 shrink-0 self-end sm:self-center">
+        {reminder.dueDate && (
+          <button
+            type="button"
+            onClick={() => {
+              const ics = buildIcsCalendar([
+                {
+                  id: reminder.id,
+                  title: reminder.title,
+                  description: reminder.note,
+                  date: reminder.dueDate,
+                  time: reminder.dueTime || '10:00',
+                  category: reminder.bill ? 'bill' : 'reminder',
+                },
+              ]);
+              downloadIcsFile(`saarthi-reminder-${slugifyTitle(reminder.title)}.ics`, ics);
+            }}
+            className="min-h-[48px] px-3.5 py-2 rounded-xl border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold text-xs inline-flex items-center space-x-1.5 transition-colors"
+            title={t('exportToCalendar', lang)}
+            aria-label={`${t('exportToCalendar', lang)} for ${reminder.title}`}
+          >
+            <CalendarPlus className="w-4 h-4 text-amber-600" />
+            <span className="hidden sm:inline">.ics</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onDelete}

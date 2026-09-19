@@ -356,3 +356,50 @@ export function validatePlanRequest(body: any): ValidationResult<ValidatedPlanDa
     },
   };
 }
+
+export interface ValidatedVisitPrepData {
+  medicineNames: string[];
+  language: Language;
+  userName?: string;
+}
+
+export function validateVisitPrepRequest(body: any): ValidationResult<ValidatedVisitPrepData> {
+  if (!body || typeof body !== 'object') {
+    return {
+      isValid: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'Please provide a valid request body.',
+        statusCode: 400,
+      },
+    };
+  }
+
+  const { medicineNames, language = 'en', userName } = body;
+
+  if (!Array.isArray(medicineNames)) {
+    return {
+      isValid: false,
+      error: {
+        code: 'INVALID_MEDICINES',
+        message: 'medicineNames must be a list of medicine names.',
+        statusCode: 400,
+      },
+    };
+  }
+
+  const cleanNames = medicineNames
+    .filter((name) => typeof name === 'string' && name.trim().length > 0)
+    .slice(0, 15)
+    .map((name) => name.trim().slice(0, 100));
+
+  return {
+    isValid: true,
+    data: {
+      medicineNames: cleanNames,
+      language: language === 'hi' ? 'hi' : 'en',
+      userName: typeof userName === 'string' ? userName.slice(0, 50).trim() : undefined,
+    },
+  };
+}
+

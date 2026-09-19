@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
-import { Users, Phone, MessageSquare, MessageCircle, X, ShieldAlert, AlertTriangle } from 'lucide-react';
+import {
+  Users,
+  Phone,
+  MessageSquare,
+  MessageCircle,
+  X,
+  ShieldAlert,
+  AlertTriangle,
+  MapPin,
+  Loader2,
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { formatTelUrl, formatSmsUrl, formatWhatsAppUrl } from '../../utils/phone';
 import { t } from '../../i18n';
 
 interface TellFamilyModalProps {
@@ -18,33 +29,101 @@ export const TellFamilyModal: React.FC<TellFamilyModalProps> = ({ isOpen, onClos
     return primary ? primary.id : contacts[0]?.id || '';
   });
 
+  const [includeLocation, setIncludeLocation] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationMapLink, setLocationMapLink] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const selectedContact = contacts.find((c) => c.id === selectedContactId) || contacts[0];
   const isDemo = selectedContact?.isDemo || false;
 
-  const previewMessage =
+  const baseMessage =
     lang === 'hi'
       ? `मुझे "${topic}" के बारे में एक संदिग्ध संदेश मिला है। सारथी ऐप ने इसे खतरनाक व धोखाधड़ी (Scam) बताया है। कृपया कुछ भी करने से पहले मेरे साथ इसकी जांच करें।`
       : `I received a suspicious message about "${topic}". Saarthi flagged it as dangerous. Please check this with me before I do anything.`;
 
-  const cleanPhone = selectedContact ? selectedContact.phone.replace(/[^0-9+]/g, '') : '';
-  const encodedText = encodeURIComponent(previewMessage);
+  const previewMessage = includeLocation && locationMapLink
+    ? `${baseMessage}\n${locationMapLink}`
+    : baseMessage;
+
+  const cleanPhone = selectedContact ? selectedContact.phone : '';
+
+  const handleToggleLocation = () => {
+    if (!includeLocation) {
+      if (!navigator.geolocation) {
+        setLocationError(
+          lang === 'hi'
+            ? 'स्थान सेवा उपलब्ध नहीं है। आप बिना स्थान के भी संदेश भेज सकते हैं।'
+            : 'Location is not supported on this device. You can still send your message without it.'
+        );
+        return;
+      }
+
+      setLocationLoading(true);
+      setLocationError(null);
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocationLoading(false);
+          const lat = pos.coords.latitude.toFixed(5);
+          const lng = pos.coords.longitude.toFixed(5);
+          const acc = Math.round(pos.coords.accuracy);
+          const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
+
+          setIncludeLocation(true);
+          setLocationAccuracy(acc);
+          setLocationMapLink(mapLink);
+        },
+        (err) => {
+          setLocationLoading(false);
+          setIncludeLocation(false);
+          setLocationAccuracy(null);
+          let msg =
+            lang === 'hi'
+              ? 'स्थान प्राप्त नहीं हो सका। आप बिना इसके भी संदेश भेज सकते हैं।'
+              : 'Could not retrieve your location. You can still send your message without it.';
+          if (err.code === 1) {
+            msg =
+              lang === 'hi'
+                ? 'स्थान की अनुमति नहीं मिली। आप बिना इसके भी संदेश भेज सकते हैं।'
+                : 'Location permission was denied. You can still send your message without it.';
+          } else if (err.code === 3) {
+            msg =
+              lang === 'hi'
+                ? 'स्थान का समय समाप्त हो गया। आप बिना इसके भी संदेश भेज सकते हैं।'
+                : 'Location request timed out. You can still send your message without it.';
+          }
+          setLocationError(msg);
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    } else {
+      setIncludeLocation(false);
+      setLocationAccuracy(null);
+      setLocationError(null);
+      setLocationMapLink(null);
+    }
+  };
 
   const handleWhatsApp = () => {
     if (isDemo || !cleanPhone) return;
-    const url = `https://wa.me/${cleanPhone.replace('+', '')}?text=${encodedText}`;
+    const url = formatWhatsAppUrl(cleanPhone, previewMessage);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleSMS = () => {
     if (isDemo || !cleanPhone) return;
-    window.location.href = `sms:${cleanPhone}?body=${encodedText}`;
+    const url = formatSmsUrl(cleanPhone, previewMessage);
+    window.location.href = url;
   };
 
   const handleCall = () => {
     if (isDemo || !cleanPhone) return;
-    window.location.href = `tel:${cleanPhone}`;
+    const url = formatTelUrl(cleanPhone);
+    window.location.href = url;
   };
 
   return (
@@ -135,6 +214,42 @@ export const TellFamilyModal: React.FC<TellFamilyModalProps> = ({ isOpen, onClos
               <div className="p-3.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 text-sm leading-relaxed select-all">
                 {previewMessage}
               </div>
+            </div>
+
+            {/* Feature 6: Location Checkbox */}
+            <div className="space-y-1.5 p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50">
+              <label className="flex items-center space-x-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeLocation}
+                  onChange={handleToggleLocation}
+                  disabled={locationLoading}
+                  className="w-5 h-5 rounded-md text-amber-600 focus:ring-amber-500 border-stone-300"
+                />
+                <span className="text-sm font-semibold text-stone-900 dark:text-stone-100 flex items-center space-x-1.5">
+                  <MapPin className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                  <span>{t('includeLocation', lang)}</span>
+                </span>
+              </label>
+
+              {locationLoading && (
+                <div className="flex items-center space-x-2 text-xs text-amber-800 dark:text-amber-300 pl-8">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                  <span>{t('gettingLocation', lang)}</span>
+                </div>
+              )}
+
+              {includeLocation && locationAccuracy !== null && (
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 pl-8">
+                  {t('locationFoundAccuracy', lang, { meters: locationAccuracy })}
+                </p>
+              )}
+
+              {locationError && (
+                <p role="alert" className="text-xs font-semibold text-rose-700 dark:text-rose-400 pl-8">
+                  {locationError}
+                </p>
+              )}
             </div>
 
             {isDemo && (

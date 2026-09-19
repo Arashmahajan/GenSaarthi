@@ -113,6 +113,18 @@ export interface PlanDayResponse {
   source: 'ai' | 'fallback';
 }
 
+export interface VisitPrepRequest {
+  medicineNames: string[];
+  language?: Language;
+  userName?: string;
+}
+
+export interface VisitPrepResponse {
+  questions: string[];
+  disclaimer: string;
+  source: 'ai' | 'fallback';
+}
+
 export interface ApiErrorResponse {
   error: {
     code: string;

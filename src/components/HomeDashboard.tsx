@@ -2,6 +2,7 @@ import React from 'react';
 import { FileText, ShieldAlert, Pill, Landmark, Smartphone, MessageSquare, PhoneCall, CheckCircle, ArrowRight, Sun, Sparkles, Volume2 } from 'lucide-react';
 import { AccessibilitySettings, Language } from '../types';
 import { DailySatsangCard } from './DailySatsangCard';
+import { DailyCheckIn } from './DailyCheckIn';
 import { VoiceSpeakerButton } from './VoiceSpeakerButton';
 import { useApp } from '../context/AppContext';
 
@@ -113,6 +114,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           />
         </div>
       </div>
+
+      {/* Feature 3: Daily Senior Wellness Check-in */}
+      <DailyCheckIn />
 
       {/* 4 Primary Action Cards Grid (Large, High Contrast, Elder Friendly) */}
       <div className="grid md:grid-cols-2 gap-5">

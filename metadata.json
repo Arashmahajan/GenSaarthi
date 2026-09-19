@@ -3,7 +3,8 @@
   "description": "A GenAI-powered accessible daily companion and guide for senior citizens in India, simplifying complex documents, detecting scams, managing medicines, and offering voice-first guidance.",
   "requestFramePermissions": [
     "microphone",
-    "camera"
+    "camera",
+    "geolocation"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

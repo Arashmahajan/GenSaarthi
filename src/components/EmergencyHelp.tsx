@@ -12,10 +12,13 @@ import {
   Send,
   CheckCircle2,
   X,
+  MapPin,
+  Loader2,
 } from 'lucide-react';
 import { EmergencyContact } from '../types';
 import { EMERGENCY_NUMBERS } from '../data/saarthiData';
 import { useApp } from '../context/AppContext';
+import { formatTelUrl, formatSmsUrl, formatWhatsAppUrl } from '../utils/phone';
 import { t } from '../i18n';
 
 interface EmergencyHelpProps {
@@ -38,12 +41,85 @@ export const EmergencyHelp: React.FC<EmergencyHelpProps> = ({
   const [newContactPhone, setNewContactPhone] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
-  // "I'm not feeling well" drafting state (Requirement 5)
+  // "I'm not feeling well" drafting state (Requirement 5 & Feature 6)
   const [feelingUnwellOpen, setFeelingUnwellOpen] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<string>(contacts[0]?.id || '');
   const [customUnwellText, setCustomUnwellText] = useState(
     'I am not feeling well and need some help. Please call or come over.'
   );
+
+  // Feature 6: Geolocation in "Not feeling well"
+  const [includeLocation, setIncludeLocation] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [lastAppendedMapLink, setLastAppendedMapLink] = useState<string | null>(null);
+
+  const handleToggleLocation = () => {
+    if (!includeLocation) {
+      if (!navigator.geolocation) {
+        setLocationError(
+          lang === 'hi'
+            ? 'आपके उपकरण/ब्राउज़र में स्थान (GPS) समर्थित नहीं है। आप बिना स्थान के भी संदेश भेज सकते हैं।'
+            : 'Location is not supported on this device. You can still send your message without it.'
+        );
+        return;
+      }
+
+      setLocationLoading(true);
+      setLocationError(null);
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocationLoading(false);
+          const lat = pos.coords.latitude.toFixed(5);
+          const lng = pos.coords.longitude.toFixed(5);
+          const acc = Math.round(pos.coords.accuracy);
+          const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
+
+          setIncludeLocation(true);
+          setLocationAccuracy(acc);
+          setLastAppendedMapLink(mapLink);
+
+          setCustomUnwellText((prev) => {
+            const clean = prev.replace(/\n?https:\/\/www\.google\.com\/maps\?q=[^\s]+/g, '').trim();
+            return `${clean}\n${mapLink}`;
+          });
+        },
+        (err) => {
+          setLocationLoading(false);
+          setIncludeLocation(false);
+          setLocationAccuracy(null);
+          let msg =
+            lang === 'hi'
+              ? 'स्थान प्राप्त नहीं हो सका। आप बिना इसके भी संदेश भेज सकते हैं।'
+              : 'Could not retrieve your location. You can still send your message without it.';
+          if (err.code === 1) {
+            msg =
+              lang === 'hi'
+                ? 'स्थान की अनुमति नहीं मिली। आप बिना इसके भी संदेश भेज सकते हैं।'
+                : 'Location permission was denied. You can still send your message without it.';
+          } else if (err.code === 3) {
+            msg =
+              lang === 'hi'
+                ? 'स्थान का समय समाप्त हो गया। आप बिना इसके भी संदेश भेज सकते हैं।'
+                : 'Location request timed out. You can still send your message without it.';
+          }
+          setLocationError(msg);
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    } else {
+      // User is unchecking
+      setIncludeLocation(false);
+      setLocationAccuracy(null);
+      setLocationError(null);
+      if (lastAppendedMapLink) {
+        setCustomUnwellText((prev) => prev.replace(lastAppendedMapLink, '').trim());
+        setLastAppendedMapLink(null);
+      }
+    }
+  };
 
   useEffect(() => {
     if (contacts.length > 0 && !selectedContactId) {
@@ -84,15 +160,13 @@ export const EmergencyHelp: React.FC<EmergencyHelpProps> = ({
   const selectedContact = contacts.find((c) => c.id === selectedContactId) || contacts[0];
 
   const handleSendWhatsApp = (phone: string, text: string) => {
-    const cleanNumber = phone.replace(/[^0-9]/g, '');
-    const encoded = encodeURIComponent(text);
-    window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}&text=${encoded}`, '_blank');
+    const url = formatWhatsAppUrl(phone, text);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleSendSMS = (phone: string, text: string) => {
-    const cleanNumber = phone.replace(/[^0-9+]/g, '');
-    const encoded = encodeURIComponent(text);
-    window.open(`sms:${cleanNumber}?body=${encoded}`, '_self');
+    const url = formatSmsUrl(phone, text);
+    window.location.href = url;
   };
 
   return (
@@ -217,8 +291,44 @@ export const EmergencyHelp: React.FC<EmergencyHelpProps> = ({
                     rows={3}
                     value={customUnwellText}
                     onChange={(e) => setCustomUnwellText(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-base"
+                    className="w-full p-3.5 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-base"
                   />
+                </div>
+
+                {/* Feature 6: Location Checkbox */}
+                <div className="space-y-2 p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50">
+                  <label className="flex items-center space-x-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={includeLocation}
+                      onChange={handleToggleLocation}
+                      disabled={locationLoading}
+                      className="w-5 h-5 rounded-md text-amber-600 focus:ring-amber-500 border-stone-300"
+                    />
+                    <span className="text-base font-semibold text-stone-900 dark:text-stone-100 flex items-center space-x-1.5">
+                      <MapPin className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                      <span>{t('includeLocation', lang)}</span>
+                    </span>
+                  </label>
+
+                  {locationLoading && (
+                    <div className="flex items-center space-x-2 text-sm text-amber-800 dark:text-amber-300 pl-8">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                      <span>{t('gettingLocation', lang)}</span>
+                    </div>
+                  )}
+
+                  {includeLocation && locationAccuracy !== null && (
+                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 pl-8">
+                      {t('locationFoundAccuracy', lang, { meters: locationAccuracy })}
+                    </p>
+                  )}
+
+                  {locationError && (
+                    <p role="alert" className="text-sm font-semibold text-rose-700 dark:text-rose-400 pl-8">
+                      {locationError}
+                    </p>
+                  )}
                 </div>
 
                 {/* Send Buttons (Disabled if demo data) */}
@@ -247,7 +357,7 @@ export const EmergencyHelp: React.FC<EmergencyHelpProps> = ({
                     </button>
 
                     <a
-                      href={`tel:${selectedContact.phone}`}
+                      href={formatTelUrl(selectedContact.phone)}
                       className="min-h-[48px] px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm flex items-center space-x-2 transition-colors shadow-xs"
                     >
                       <PhoneCall className="w-4 h-4" />

@@ -24,6 +24,7 @@ import { PrivacyNoticeModal } from './modals/PrivacyNoticeModal';
 import { ConfirmAddMedicineModal } from './modals/ConfirmAddMedicineModal';
 import { ConfirmAddReminderModal } from './modals/ConfirmAddReminderModal';
 import { TellFamilyModal } from './modals/TellFamilyModal';
+import { IncidentChecklist } from './IncidentChecklist';
 
 export const UnifiedChecker: React.FC = () => {
   const { settings, privacySeen, setIsSOSOpen, setSOSTargetNumber } = useApp();
@@ -48,6 +49,7 @@ export const UnifiedChecker: React.FC = () => {
   const [medicineModalOpen, setMedicineModalOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [tellFamilyModalOpen, setTellFamilyModalOpen] = useState(false);
+  const [incidentChecklistOpen, setIncidentChecklistOpen] = useState(false);
 
   // Toast confirmations
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -573,6 +575,15 @@ export const UnifiedChecker: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={() => setIncidentChecklistOpen(true)}
+                    className="min-h-[48px] inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900/60 text-amber-950 dark:text-amber-200 font-bold text-sm border border-amber-300 dark:border-amber-800 shadow-xs transition-colors"
+                  >
+                    <ShieldAlert className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                    <span>{lang === 'hi' ? 'घटना सहायता चेकलिस्ट' : 'Incident Checklist'}</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
                       setSOSTargetNumber('1930');
                       setIsSOSOpen(true);
@@ -663,6 +674,19 @@ export const UnifiedChecker: React.FC = () => {
         isOpen={tellFamilyModalOpen}
         onClose={() => setTellFamilyModalOpen(false)}
         topic={result?.title || 'a suspicious message'}
+      />
+
+      <IncidentChecklist
+        isOpen={incidentChecklistOpen}
+        onClose={() => setIncidentChecklistOpen(false)}
+        initialContext={{
+          senderNumber: inputText.slice(0, 30),
+          amount: result?.amountDue || undefined,
+        }}
+        onTellFamily={() => {
+          setIncidentChecklistOpen(false);
+          setTellFamilyModalOpen(true);
+        }}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import { checkRouter } from './server/routes/check';
 import { chatRouter } from './server/routes/chat';
 import { medicineRouter } from './server/routes/medicine';
 import { planRouter } from './server/routes/plan';
+import { visitPrepRouter } from './server/routes/visitPrep';
 import { verifyGeminiModelAtStartup } from './server/services/gemini';
 import { createServer as createViteServer } from 'vite';
 
@@ -29,6 +30,7 @@ app.use('/api', uploadRateLimiter, checkRouter);
 app.use('/api', aiRateLimiter, chatRouter);
 app.use('/api', aiRateLimiter, medicineRouter);
 app.use('/api', aiRateLimiter, planRouter);
+app.use('/api', aiRateLimiter, visitPrepRouter);
 
 // Unknown /api routes return JSON 404
 app.all('/api/*', (_req, res) => {

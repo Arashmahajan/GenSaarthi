@@ -11,6 +11,7 @@ import { PlanMyDay } from './components/PlanMyDay';
 import { SeniorSchemes } from './components/SeniorSchemes';
 import { DigitalGuides } from './components/DigitalGuides';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { OnboardingWizard } from './components/OnboardingWizard';
 import { useApp } from './context/AppContext';
 import { SaarthiVoiceService } from './utils/speech';
 import { PhoneCall } from 'lucide-react';
@@ -46,7 +47,12 @@ const HASH_TO_TAB: Record<string, string> = {
 };
 
 export default function App() {
-  const { settings } = useApp();
+  const {
+    settings,
+    isOnboardingOpen,
+    setIsOnboardingOpen,
+    completeOnboarding,
+  } = useApp();
   const [isSOSOpen, setSOSOpen] = useState<boolean>(false);
   const [isSettingsOpen, setSettingsOpen] = useState<boolean>(false);
   const lang = settings.language;
@@ -192,6 +198,12 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+      <OnboardingWizard
+        isOpen={isOnboardingOpen}
+        onComplete={(useSimple) => {
+          completeOnboarding(useSimple);
+        }}
       />
 
       {/* Respectful Senior-Centric Footer */}

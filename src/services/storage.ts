@@ -1,9 +1,13 @@
 import {
   AccessibilitySettings,
+  DailyCheckinRecord,
+  DoctorVisitPrepData,
   DoseLog,
   EmergencyContact,
   GeneralReminder,
+  IncidentNote,
   MedicineItem,
+  MoodType,
 } from '../types';
 import {
   DEFAULT_MEDICINES,
@@ -24,6 +28,13 @@ export const STORAGE_KEYS = {
   CONTACTS: 'saarthi_emergency_contacts',
   PRIVACY_SEEN: 'saarthi_photo_privacy_seen',
   IS_DEMO: 'saarthi_is_demo_loaded',
+  ONBOARDING_COMPLETED: 'saarthi_onboarding_completed',
+  SIMPLE_MODE: 'saarthi_simple_mode',
+  DAILY_CHECKINS: 'saarthi_daily_checkins',
+  CHECKIN_ENABLED: 'saarthi_checkin_enabled',
+  CHECKIN_NUDGE_DISMISSED: 'saarthi_checkin_nudge_dismissed',
+  INCIDENT_NOTES: 'saarthi_incident_notes',
+  VISIT_PREP_DATA: 'saarthi_visit_prep_data',
 } as const;
 
 // In-memory fallback if localStorage is unavailable (Safari private mode, quota exceeded, or disabled)
@@ -250,3 +261,120 @@ export function clearDemoData(): {
     contacts: [],
   };
 }
+
+// Onboarding
+export function isOnboardingCompleted(): boolean {
+  return getTypedItem<boolean>(STORAGE_KEYS.ONBOARDING_COMPLETED, false);
+}
+
+export function setOnboardingCompleted(completed: boolean): void {
+  setTypedItem(STORAGE_KEYS.ONBOARDING_COMPLETED, completed);
+}
+
+// Simple Mode
+export function isSimpleMode(): boolean {
+  return getTypedItem<boolean>(STORAGE_KEYS.SIMPLE_MODE, false);
+}
+
+export function setSimpleMode(enabled: boolean): void {
+  setTypedItem(STORAGE_KEYS.SIMPLE_MODE, enabled);
+}
+
+// Daily Check-ins: Local-only, NEVER sent to any server/AI
+export function getStoredCheckins(): DailyCheckinRecord[] {
+  const records = getTypedItem<DailyCheckinRecord[]>(STORAGE_KEYS.DAILY_CHECKINS, []);
+  if (!Array.isArray(records)) {
+    setTypedItem(STORAGE_KEYS.DAILY_CHECKINS, []);
+    return [];
+  }
+  return records;
+}
+
+export function setStoredCheckin(date: string, mood: MoodType): DailyCheckinRecord[] {
+  const records = getStoredCheckins();
+  // If entry exists for date, update it; otherwise append
+  const existingIdx = records.findIndex((r) => r.date === date);
+  let updated: DailyCheckinRecord[];
+  if (existingIdx >= 0) {
+    updated = [...records];
+    updated[existingIdx] = { date, mood };
+  } else {
+    updated = [...records, { date, mood }];
+  }
+  // Keep sorted by date
+  updated.sort((a, b) => a.date.localeCompare(b.date));
+  setTypedItem(STORAGE_KEYS.DAILY_CHECKINS, updated);
+  return updated;
+}
+
+export function deleteCheckinHistory(): void {
+  setTypedItem(STORAGE_KEYS.DAILY_CHECKINS, []);
+  removeRawItem(STORAGE_KEYS.CHECKIN_NUDGE_DISMISSED);
+}
+
+export function isCheckinEnabled(): boolean {
+  return getTypedItem<boolean>(STORAGE_KEYS.CHECKIN_ENABLED, true);
+}
+
+export function setCheckinEnabled(enabled: boolean): void {
+  setTypedItem(STORAGE_KEYS.CHECKIN_ENABLED, enabled);
+}
+
+export function getCheckinNudgeDismissedDate(): string | null {
+  return getTypedItem<string | null>(STORAGE_KEYS.CHECKIN_NUDGE_DISMISSED, null);
+}
+
+export function setCheckinNudgeDismissedDate(date: string): void {
+  setTypedItem(STORAGE_KEYS.CHECKIN_NUDGE_DISMISSED, date);
+}
+
+// Incident Notes (Offline & device only)
+export function getStoredIncidentNotes(): IncidentNote[] {
+  const notes = getTypedItem<IncidentNote[]>(STORAGE_KEYS.INCIDENT_NOTES, []);
+  if (!Array.isArray(notes)) {
+    setTypedItem(STORAGE_KEYS.INCIDENT_NOTES, []);
+    return [];
+  }
+  return notes;
+}
+
+export function saveIncidentNote(note: IncidentNote): IncidentNote[] {
+  const notes = getStoredIncidentNotes();
+  const existingIdx = notes.findIndex((n) => n.id === note.id);
+  let updated: IncidentNote[];
+  if (existingIdx >= 0) {
+    updated = [...notes];
+    updated[existingIdx] = note;
+  } else {
+    updated = [note, ...notes];
+  }
+  setTypedItem(STORAGE_KEYS.INCIDENT_NOTES, updated);
+  return updated;
+}
+
+export function deleteIncidentNote(id: string): IncidentNote[] {
+  const notes = getStoredIncidentNotes();
+  const updated = notes.filter((n) => n.id !== id);
+  setTypedItem(STORAGE_KEYS.INCIDENT_NOTES, updated);
+  return updated;
+}
+
+// Doctor Visit Prep Data
+export function getStoredVisitPrep(): DoctorVisitPrepData | null {
+  return getTypedItem<DoctorVisitPrepData | null>(STORAGE_KEYS.VISIT_PREP_DATA, null);
+}
+
+export function setStoredVisitPrep(data: DoctorVisitPrepData): void {
+  setTypedItem(STORAGE_KEYS.VISIT_PREP_DATA, data);
+}
+
+// Convenient aliases for AppContext
+export const getDailyCheckins = getStoredCheckins;
+export const saveDailyCheckin = setStoredCheckin;
+export const clearCheckinHistory = deleteCheckinHistory;
+export const dismissCheckinNudge = setCheckinNudgeDismissedDate;
+export const getIncidentNotes = getStoredIncidentNotes;
+export const getDoctorVisitData = getStoredVisitPrep;
+export const saveDoctorVisitData = setStoredVisitPrep;
+
+
