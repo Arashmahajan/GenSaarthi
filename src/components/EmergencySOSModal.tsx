@@ -65,6 +65,14 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
     window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}&text=${text}`, '_blank');
   };
 
+  const handleSendNotFeelingWellMessage = (phone: string) => {
+    const text = encodeURIComponent(
+      `🙏 Pranam, I am not feeling well right now and wanted to let you know. Please call me or check in on me when you see this.`
+    );
+    const cleanNumber = phone.replace(/[^0-9]/g, '');
+    window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}&text=${text}`, '_blank');
+  };
+
   const handleAddContact = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newContactName.trim() || !newContactPhone.trim()) return;
@@ -202,17 +210,27 @@ export const EmergencySOSModal: React.FC<EmergencySOSModalProps> = ({ isOpen, on
                   <button
                     type="button"
                     onClick={() => handleSendSafeMessage(contact.phone, contact.name)}
-                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-transform active:scale-95"
                     title="Send 'I am safe' message on WhatsApp"
                   >
                     <span>✓ I am Safe</span>
+                  </button>
+
+                  {/* Send Not Feeling Well WhatsApp */}
+                  <button
+                    type="button"
+                    onClick={() => handleSendNotFeelingWellMessage(contact.phone)}
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-transform active:scale-95"
+                    title="Send 'I am not feeling well' message on WhatsApp"
+                  >
+                    <span>🩺 Not Feeling Well</span>
                   </button>
 
                   {/* Send SOS WhatsApp */}
                   <button
                     type="button"
                     onClick={() => handleSendSOSMessage(contact.phone)}
-                    className="px-3 py-2 rounded-xl bg-red-800 hover:bg-red-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-red-800 hover:bg-red-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-transform active:scale-95"
                     title="Send Urgent SOS alert on WhatsApp"
                   >
                     <span>🚨 SOS Alert</span>

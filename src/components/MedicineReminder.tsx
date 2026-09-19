@@ -22,10 +22,40 @@ export const MedicineReminder: React.FC<MedicineReminderProps> = ({ language }) 
   });
 
   const [activeTiming, setActiveTiming] = useState<'all' | 'morning' | 'afternoon' | 'evening' | 'night'>('all');
+  const [viewMode, setViewMode] = useState<'today' | 'week'>('today');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [explainingMed, setExplainingMed] = useState<MedicineItem | null>(null);
   const [medExplanation, setMedExplanation] = useState<any | null>(null);
   const [isExplainingLoading, setIsExplainingLoading] = useState(false);
+
+  // Week history state: medicineId -> map of day indices (0=Mon, 6=Sun) to boolean
+  const [weeklyAdherence, setWeeklyAdherence] = useState<Record<string, boolean[]>>(() => {
+    const saved = localStorage.getItem('saarthi_med_weekly');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    // Default sample adherence for Mon-Sun
+    return {
+      'med-1': [true, true, true, true, true, false, false],
+      'med-2': [true, true, true, true, false, false, false],
+      'med-3': [true, true, true, true, true, true, false],
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('saarthi_med_weekly', JSON.stringify(weeklyAdherence));
+  }, [weeklyAdherence]);
+
+  const toggleWeekDay = (medId: string, dayIndex: number) => {
+    setWeeklyAdherence((prev) => {
+      const current = prev[medId] || [false, false, false, false, false, false, false];
+      const updated = [...current];
+      updated[dayIndex] = !updated[dayIndex];
+      return { ...prev, [medId]: updated };
+    });
+  };
 
   // New medicine form state
   const [newMedName, setNewMedName] = useState('');
@@ -66,7 +96,7 @@ export const MedicineReminder: React.FC<MedicineReminderProps> = ({ language }) 
     setMedExplanation(null);
 
     try {
-      const response = await fetch('/api/explain-medicine', {
+      const response = await fetch('/api/medicine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,36 +221,135 @@ export const MedicineReminder: React.FC<MedicineReminderProps> = ({ language }) 
         </div>
       </div>
 
-      {/* Time-of-Day Filter Chips */}
-      <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
-        {[
-          { id: 'all', label: 'All Routine / सब', count: medicines.length },
-          { id: 'morning', label: '🌅 Morning / सुबह', count: medicines.filter((m) => m.timing === 'morning').length },
-          { id: 'afternoon', label: '☀️ Afternoon / दोपहर', count: medicines.filter((m) => m.timing === 'afternoon').length },
-          { id: 'evening', label: '🌇 Evening / शाम', count: medicines.filter((m) => m.timing === 'evening').length },
-          { id: 'night', label: '🌙 Night / रात', count: medicines.filter((m) => m.timing === 'night').length },
-        ].map((tab) => (
+      {/* View Mode Switcher: Today's Schedule vs. Week View */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-stone-200">
+        <div className="flex items-center space-x-1 bg-stone-100 p-1 rounded-xl">
           <button
-            key={tab.id}
-            id={`timing-tab-${tab.id}`}
+            id="view-today-btn"
             type="button"
-            onClick={() => setActiveTiming(tab.id as any)}
-            className={`px-4 py-2 rounded-2xl text-xs md:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeTiming === tab.id
-                ? 'bg-stone-900 text-white shadow-sm'
-                : 'bg-white hover:bg-stone-100 text-stone-700 border border-stone-200'
+            onClick={() => setViewMode('today')}
+            className={`min-h-[44px] px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              viewMode === 'today'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
             }`}
           >
-            <span>{tab.label}</span>
-            <span className={`text-[11px] px-1.5 py-0.2 rounded-full ${activeTiming === tab.id ? 'bg-stone-700 text-stone-100' : 'bg-stone-100 text-stone-600'}`}>
-              {tab.count}
-            </span>
+            Today's Routine (आज)
           </button>
-        ))}
+          <button
+            id="view-week-btn"
+            type="button"
+            onClick={() => setViewMode('week')}
+            className={`min-h-[44px] px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              viewMode === 'week'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            Week View (पूरा सप्ताह)
+          </button>
+        </div>
+
+        {viewMode === 'today' && (
+          /* Time-of-Day Filter Chips */
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { id: 'all', label: 'All', count: medicines.length },
+              { id: 'morning', label: '🌅 Morning', count: medicines.filter((m) => m.timing === 'morning').length },
+              { id: 'afternoon', label: '☀️ Afternoon', count: medicines.filter((m) => m.timing === 'afternoon').length },
+              { id: 'evening', label: '🌇 Evening', count: medicines.filter((m) => m.timing === 'evening').length },
+              { id: 'night', label: '🌙 Night', count: medicines.filter((m) => m.timing === 'night').length },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                id={`timing-tab-${tab.id}`}
+                type="button"
+                onClick={() => setActiveTiming(tab.id as any)}
+                className={`min-h-[44px] px-3.5 py-1.5 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  activeTiming === tab.id
+                    ? 'bg-stone-900 text-white shadow-sm'
+                    : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`text-[11px] px-1.5 py-0.2 rounded-full ${activeTiming === tab.id ? 'bg-stone-700 text-stone-100' : 'bg-stone-200 text-stone-700'}`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Medicines Grid */}
-      <div className="grid md:grid-cols-2 gap-4">
+      {/* Week View Section */}
+      {viewMode === 'week' ? (
+        <div id="medicine-week-view" className="bg-white border-2 border-emerald-200 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+            <div>
+              <h3 className="text-xl font-bold text-stone-900">Weekly Medicine Adherence</h3>
+              <p className="text-stone-500 text-sm">
+                Tap on any day (Mon-Sun) to check off your medicine dose for that day.
+              </p>
+            </div>
+            <span className="text-xs font-semibold bg-emerald-100 text-emerald-900 px-3 py-1 rounded-full self-start">
+              Current Week (Monday - Sunday)
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[600px]">
+              <thead>
+                <tr className="border-b border-stone-200 text-xs font-bold text-stone-500 uppercase">
+                  <th className="py-3 px-3">Medicine & Timing</th>
+                  {['Mon (सोम)', 'Tue (मंगल)', 'Wed (बुध)', 'Thu (गुरु)', 'Fri (शुक्र)', 'Sat (शनि)', 'Sun (रवि)'].map((day, i) => (
+                    <th key={i} className="py-3 px-2 text-center">
+                      {day}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100 text-sm">
+                {medicines.map((med) => {
+                  const days = weeklyAdherence[med.id] || [false, false, false, false, false, false, false];
+                  return (
+                    <tr key={med.id} className="hover:bg-stone-50/80">
+                      <td className="py-3 px-3 font-semibold text-stone-900">
+                        <div className="flex items-center gap-2">
+                          <Pill className="w-4 h-4 text-emerald-600" />
+                          <div>
+                            <span className="block font-bold">{med.name}</span>
+                            <span className="text-xs text-stone-500 font-normal">
+                              {med.dosage} • {med.timeLabel}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      {days.map((isDone, dIdx) => (
+                        <td key={dIdx} className="py-3 px-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleWeekDay(med.id, dIdx)}
+                            className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl transition-transform active:scale-95 ${
+                              isDone
+                                ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                                : 'bg-stone-100 hover:bg-stone-200 text-stone-400 border border-stone-300'
+                            }`}
+                            title={`Toggle ${med.name} for day ${dIdx + 1}`}
+                          >
+                            {isDone ? '✓' : '—'}
+                          </button>
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Medicines Grid */
+        <div className="grid md:grid-cols-2 gap-4">
         {filteredMedicines.map((med) => {
           const isLowPills = med.remainingPills <= 5;
           return (
@@ -335,6 +464,7 @@ export const MedicineReminder: React.FC<MedicineReminderProps> = ({ language }) 
           );
         })}
       </div>
+      )}
 
       {/* AI Explanation Modal */}
       {explainingMed && (

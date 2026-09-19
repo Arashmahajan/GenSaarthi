@@ -5,9 +5,52 @@ export type TextSize = 'normal' | 'large' | 'extra-large';
 export interface AccessibilitySettings {
   textSize: TextSize;
   highContrast: boolean;
+  darkMode: boolean;
   speechRate: number; // 0.8 for slow elder-friendly speech, 1.0 normal
   language: Language;
   soundEnabled: boolean;
+}
+
+export type RiskLevel = 'safe' | 'careful' | 'scam';
+
+export interface UnifiedCheckResult {
+  kind: 'bill' | 'bank' | 'government' | 'medical' | 'delivery' | 'family' | 'other';
+  title: string;
+  summary: string;
+  steps: string[];
+  risk: RiskLevel;
+  riskReason: string;
+  redFlags: string[];
+  amountDue: string | null;
+  dueDate: string | null;
+  jargon: Array<{ term: string; meaning: string }>;
+  reminder: null | { title: string; dueDate: string | null; note: string };
+  medicine: null | { name: string; timing: string };
+  helpline: string | null;
+  source: 'ai' | 'fallback';
+}
+
+export interface GeneralReminder {
+  id: string;
+  title: string;
+  dueDate: string | null;
+  note: string;
+  isCompleted: boolean;
+  createdAt: string;
+}
+
+export interface DayPlanSlot {
+  time: string;
+  activity: string;
+  tip: string;
+}
+
+export interface DayPlanResult {
+  greeting: string;
+  summary: string;
+  schedule: DayPlanSlot[];
+  wellnessNote: string;
+  source: 'ai' | 'fallback';
 }
 
 export interface DocumentAnalysisResult {

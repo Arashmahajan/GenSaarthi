@@ -1,6 +1,11 @@
 {
   "name": "Saarthi",
   "description": "A GenAI-powered accessible daily companion and guide for senior citizens in India, simplifying complex documents, detecting scams, managing medicines, and offering voice-first guidance.",
-  "requestFramePermissions": ["microphone"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

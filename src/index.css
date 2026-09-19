@@ -1,23 +1,44 @@
 @import "tailwindcss";
 
 @layer base {
+  html {
+    font-size: 19px;
+  }
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
   }
   h1, h2, h3, h4, .font-heading {
-    font-family: 'Lexend', system-ui, -apple-system, sans-serif;
+    font-family: 'Lexend', 'Atkinson Hyperlegible', system-ui, sans-serif;
+  }
+}
+
+/* Accessible focus ring for keyboard navigation */
+:focus-visible {
+  outline: 3px solid #d97706 !important;
+  outline-offset: 3px !important;
+}
+
+/* Respect user's motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 /* Accessibility high-contrast mode helper classes */
 .high-contrast {
-  --tw-bg-opacity: 1;
-  background-color: rgb(15 23 42) !important;
-  color: rgb(248 250 252) !important;
+  background-color: #050505 !important;
+  color: #ffffff !important;
 }
 
 .high-contrast .card-contrast {
-  background-color: rgb(30 41 59) !important;
-  border-color: rgb(148 163 184) !important;
-  color: rgb(255 255 255) !important;
+  background-color: #121212 !important;
+  border-color: #facc15 !important;
+  color: #ffffff !important;
 }
+

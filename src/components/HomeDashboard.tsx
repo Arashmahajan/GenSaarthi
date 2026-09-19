@@ -26,48 +26,48 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   const primaryActions = [
     {
-      id: 'simplify',
-      title: 'कागज़ और बिल समझें',
-      engTitle: 'Simplify Bills & Letters',
-      desc: 'Understand confusing electricity bills, doctor prescriptions, bank alerts, and pension letters in plain words.',
-      icon: <FileText className="w-8 h-8 text-amber-600" />,
+      id: 'check',
+      title: 'सुरक्षा और बिल जांचें (Check Safety)',
+      engTitle: 'Is This Message or Document Safe?',
+      desc: 'Got an urgent SMS threatening power cut tonight, SBI KYC link, electricity bill, or prescription? Saarthi clarifies in plain words.',
+      icon: <ShieldAlert className="w-8 h-8 text-amber-600" />,
       bgColor: 'bg-gradient-to-br from-amber-50 to-orange-50/80 border-amber-300 hover:border-amber-400',
-      badge: 'Electricity • Prescriptions • Banking',
+      badge: 'Scam Detection • Bills • Prescriptions',
       badgeColor: 'bg-amber-100 text-amber-900',
-      buttonText: 'Read My Bill / बिल समझें',
+      buttonText: 'Check Message / जांचें',
     },
     {
-      id: 'scam',
-      title: 'सुरक्षा गार्ड (Scam Shield)',
-      engTitle: 'Check Frauds & Traps',
-      desc: 'Got an urgent SMS threatening power cut tonight or SBI KYC block? Check in 5 seconds before clicking or calling.',
-      icon: <ShieldAlert className="w-8 h-8 text-rose-600" />,
+      id: 'chat',
+      title: 'सारथी से पूछें (Ask Saarthi)',
+      engTitle: 'Companion Chat & Voice',
+      desc: 'Ask any question in gentle spoken Hindi or English. From digital life certificates to daily calm advice.',
+      icon: <MessageSquare className="w-8 h-8 text-rose-600" />,
       bgColor: 'bg-gradient-to-br from-rose-50 to-orange-50/80 border-rose-300 hover:border-rose-400',
-      badge: 'Power Cut SMS • Fake Police • KYC',
+      badge: 'Voice • Hindi & English • Caring',
       badgeColor: 'bg-rose-100 text-rose-900',
-      buttonText: 'Check Message / जाँच करें',
+      buttonText: 'Talk to Saarthi / बात करें',
     },
     {
       id: 'medicine',
       title: 'दवाई साथी (Medicine Routine)',
-      engTitle: 'Daily Pill Schedule',
+      engTitle: 'Week View & Taken Tracker',
       desc: 'Visual morning, afternoon, and night pill reminders with "Maine Le Li" (Taken) checkoff and doctor explanations.',
       icon: <Pill className="w-8 h-8 text-emerald-600" />,
       bgColor: 'bg-gradient-to-br from-emerald-50 to-teal-50/80 border-emerald-300 hover:border-emerald-400',
-      badge: 'Morning • Afternoon • Night Pills',
+      badge: 'Week Adherence • Timely Schedule',
       badgeColor: 'bg-emerald-100 text-emerald-900',
       buttonText: 'View Medicines / दवाई देखें',
     },
     {
-      id: 'schemes',
-      title: 'सरकारी योजनाएं (Senior Schemes)',
-      engTitle: 'Govt Benefits in India',
-      desc: 'Ayushman Bharat 70+ (₹5 Lakh free health cover), SCSS (8.2% interest), and digital life certificate (Jeevan Pramaan).',
-      icon: <Landmark className="w-8 h-8 text-blue-600" />,
+      id: 'reminders',
+      title: 'याददाश्त साथी (Reminders)',
+      engTitle: 'Due Dates & Routine Tasks',
+      desc: 'Never worry about forgetting electricity bill deadlines, doctor visits, or pension certificate submission dates.',
+      icon: <FileText className="w-8 h-8 text-blue-600" />,
       bgColor: 'bg-gradient-to-br from-blue-50 to-indigo-50/80 border-blue-300 hover:border-blue-400',
-      badge: 'Health Cover • 8.2% Savings • Pension',
+      badge: 'Bill Dates • Doctor Visits • Deadlines',
       badgeColor: 'bg-blue-100 text-blue-900',
-      buttonText: 'Check My Benefits / योजनाएं',
+      buttonText: 'My Reminders / याददाश्त देखें',
     },
   ];
 
@@ -197,6 +197,27 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
         </div>
 
+        {/* Plan My Day */}
+        <div
+          onClick={() => onSelectTab('plan')}
+          className="bg-white border-2 border-emerald-200 hover:border-emerald-400 rounded-3xl p-5 shadow-xs cursor-pointer transition-all hover:shadow-sm flex items-start space-x-3.5 group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xl shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+            🌅
+          </div>
+          <div>
+            <h4 className="font-extrabold text-base text-stone-900">
+              दिनचर्या बनाएं (Plan My Day)
+            </h4>
+            <span className="text-xs font-medium text-stone-500 block mb-1">
+              Calm Senior Daily Routine
+            </span>
+            <p className="text-xs text-stone-600">
+              Personalized gentle schedule for walks, prayers, meals, and rest.
+            </p>
+          </div>
+        </div>
+
         {/* Emergency SOS */}
         <div
           onClick={onOpenSOS}
@@ -236,7 +257,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <button
           id="home-check-scam-btn"
           type="button"
-          onClick={() => onSelectTab('scam')}
+          onClick={() => onSelectTab('check')}
           className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm shrink-0 shadow-md transition-colors"
         >
           Verify Any Message →
